@@ -7,14 +7,19 @@
     "test": "tests"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "dev": "npx nodemon src/server.js"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "dependencies": {
+    "amqplib": "^2.0.1",
+    "bullmq": "^5.78.1",
     "dotenv": "^17.4.2",
     "express": "^5.2.1",
-    "pg": "^8.21.0"
+    "jsonwebtoken": "^9.0.3",
+    "pg": "^8.21.0",
+    "redis": "^6.0.0"
   }
 }
