@@ -1,34 +1,23 @@
 class AuthService {
   constructor({
     userRepository,
-    sessionRepository,
     credentialService,
     tokenService,
+    sessionService,
     transactionManager,
     eventPublisher,
+    authenticationProviderFactory,
   }) {
     this.userRepository = userRepository;
-
-    this.sessionRepository = sessionRepository;
-
     this.credentialService = credentialService;
-
     this.tokenService = tokenService;
-
+    this.sessionService = sessionService;
+    this.transactionManager = transactionManager;
     this.eventPublisher = eventPublisher;
+    this.authenticationProviderFactory = authenticationProviderFactory;
   }
 
   async register(data) {
-    /*
-    data = {
-      name,
-      email,
-      password,
-      roleId,
-      deviceName
-    }
-  */
-
     // Step 1 — check existing user
     const existingUser = await this.userRepository.findByEmail(data.email);
 
@@ -41,13 +30,10 @@ class AuthService {
       data.password,
     );
 
-    let createdUser = null;
-    let refreshToken = null;
-
     // Step 3 — transactional work
     const result = await this.transactionManager.execute(async (client) => {
       // create user
-      createdUser = await this.userRepository.create(
+      const createdUser = await this.userRepository.create(
         {
           name: data.name,
           email: data.email,
@@ -57,34 +43,31 @@ class AuthService {
         client,
       );
 
-      // create refresh token
-      refreshToken = this.tokenService.generateRefreshToken(createdUser);
-
-      // create session
-      await this.sessionRepository.create(
+      const refreshToken = await this.sessionService.createSession(
         {
           userId: createdUser.id,
-          refreshToken: refreshToken,
+          user: createdUser,
           deviceName: data.deviceName,
-
-          expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
         },
         client,
       );
 
-      return createdUser;
+      return {
+        user: createdUser,
+        refreshToken,
+      };
     });
 
     // Step 4 — generate access token AFTER transaction success
-    const accessToken = this.tokenService.generateAccessToken(result);
+    const accessToken = this.tokenService.generateAccessToken(result.user);
 
     // Step 5 — publish event AFTER commit
     // (later this becomes Outbox Pattern)
 
     try {
       await this.eventPublisher.publish("user.registered", {
-        userId: result.id,
-        email: result.email,
+        userId: result?.user?.id,
+        email: result?.user?.email,
       });
     } catch (error) {
       console.error("Failed to publish user.registered event", error);
@@ -102,37 +85,35 @@ class AuthService {
     // Step 6 — return response
     return {
       user: {
-        id: result.id,
-        name: result.name,
-        email: result.email,
+        id: result?.user?.id,
+        name: result?.user?.name,
+        email: result?.user?.email,
       },
-
       accessToken,
-
       refreshToken,
     };
   }
 
   async login(data) {
-    const user = await this.credentialService.validateCredentials(
-      data.email,
-      data.password,
-    );
+    const provider = this.authenticationProviderFactory.getProvider(data.type);
+
+    const user = await provider.authenticate(data);
 
     const accessToken = this.tokenService.generateAccessToken(user);
 
-    const refreshToken = this.tokenService.generateRefreshToken(user);
-
-    await this.sessionRepository.create({
+    const refreshToken = await this.sessionService.createSession({
       userId: user.id,
-      refreshToken,
+      user,
       deviceName: data.deviceName,
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000),
     });
 
-    await this.eventPublisher.publish("user.logged_in", {
-      userId: user.id,
-    });
+    try {
+      await this.eventPublisher.publish("user.logged_in", {
+        userId: user.id,
+      });
+    } catch (error) {
+      console.error("Failed to publish user.logged_in event", error);
+    }
 
     return {
       accessToken,
@@ -140,25 +121,18 @@ class AuthService {
     };
   }
 
-  async refreshToken(oldRefreshToken) {
-    const decoded = this.tokenService.verifyRefreshToken(oldRefreshToken);
+  async refreshAccessToken(refreshToken) {
+    await this.sessionService.validateSession(refreshToken);
 
-    const session =
-      await this.sessionRepository.findByRefreshToken(oldRefreshToken);
-
-    if (!session) {
-      throw new Error("Invalid session");
-    }
+    const decoded = this.tokenService.verifyRefreshToken(refreshToken);
 
     const user = await this.userRepository.findById(decoded.userId);
 
     const accessToken = this.tokenService.generateAccessToken(user);
 
-    const newRefreshToken = this.tokenService.generateRefreshToken(user);
-
-    await this.sessionRepository.updateRefreshToken(
-      session.id,
-      newRefreshToken,
+    const newRefreshToken = await this.sessionService.rotateRefreshToken(
+      refreshToken,
+      user,
     );
 
     return {
@@ -168,7 +142,15 @@ class AuthService {
   }
 
   async logout(sessionId) {
-    await this.sessionRepository.deleteById(sessionId);
+    await this.sessionService.deleteSession(sessionId);
+
+    try {
+      await this.eventPublisher.publish("user.logged_out", {
+        sessionId,
+      });
+    } catch (error) {
+      console.error("Failed to publish user.logged_out event", error);
+    }
 
     return {
       success: true,
@@ -176,7 +158,25 @@ class AuthService {
   }
 
   async logoutAllDevices(userId) {
-    await this.sessionRepository.deleteByUserId(userId);
+    await this.sessionService.deleteAllUserSessions(userId);
+
+    return {
+      success: true,
+    };
+  }
+
+  async requestOtp(data) {
+    const otp = this.otpService.generateOtp(data.email);
+
+    try {
+      await this.eventPublisher.publish("auth.otp.required", {
+        email: data.email,
+        otp,
+      });
+    } catch (error) {
+      console.error(error);
+      throw error;
+    }
 
     return {
       success: true,

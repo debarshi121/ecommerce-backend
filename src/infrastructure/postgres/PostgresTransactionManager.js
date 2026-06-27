@@ -5,8 +5,8 @@ class PostgresTransactionManager {
     this.postgresClient = postgresClient;
   }
 
-  async execute(callback) {
-    const client = await this.postgresClient.getPool().connect();
+  async runInTransaction(callback) {
+    const client = await this.postgresClient.getClient();
 
     try {
       await client.query("BEGIN");

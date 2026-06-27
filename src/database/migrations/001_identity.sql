@@ -45,4 +45,12 @@ IF NOT EXISTS "uuid-ossp";
             device_name   VARCHAR(255)                               ,
             expires_at    TIMESTAMP NOT NULL                         ,
             created_at    TIMESTAMP DEFAULT NOW()
-        );
+        )
+    ;
+    ---------------------------------------------------
+    ALTER TABLE role_permissions
+        ADD CONSTRAINT unique_role_permission UNIQUE
+            (
+                role_id,
+                permission_id
+            );

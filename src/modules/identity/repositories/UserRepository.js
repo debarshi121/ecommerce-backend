@@ -84,6 +84,26 @@ class UserRepository {
 
     await executor.query(query, [userId]);
   }
+
+  async findPermissionsById(userId, tx = null) {
+    const query = `
+      SELECT p.name
+      FROM users u
+      JOIN roles r
+        ON u.role_id = r.id
+      JOIN role_permissions rp
+        ON rp.role_id = r.id
+      JOIN permissions p
+        ON p.id = rp.permission_id
+      WHERE u.id = $1
+    `;
+
+    const executor = tx || this.db;
+
+    const result = await executor.query(query, [userId]);
+
+    return result.rows;
+  }
 }
 
 module.exports = UserRepository;

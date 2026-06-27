@@ -1,62 +1,41 @@
 // src/infrastructure/rabbitmq/EventConsumer.js
 
 class EventConsumer {
-    constructor(rabbitClient) {
-        this.channel = rabbitClient.getChannel();
-    }
+  constructor(rabbitClient) {
+    this.channel = rabbitClient.getChannel();
 
-    async consume(
-        exchange,
-        queue,
-        routingKey,
-        handler
-    ) {
+    this.exchange = "domain-events";
+  }
 
-        await this.channel.assertExchange(
-            exchange,
-            "topic",
-            { durable: true }
-        );
+  async consume(queue, routingKey, handler) {
+    await this.channel.assertQueue(queue, {
+      durable: true,
+    });
 
-        await this.channel.assertQueue(
-            queue,
-            { durable: true }
-        );
+    await this.channel.bindQueue(queue, this.exchange, routingKey);
 
-        await this.channel.bindQueue(
-            queue,
-            exchange,
-            routingKey
-        );
+    await this.channel.prefetch(10);
 
-        this.channel.consume(
-            queue,
-            async (message) => {
+    this.channel.consume(
+      queue,
 
-                try {
+      async (message) => {
+        if (!message) {
+          return;
+        }
 
-                    const payload =
-                        JSON.parse(
-                            message.content.toString()
-                        );
+        try {
+          const event = JSON.parse(message.content.toString());
 
-                    await handler(payload);
+          await handler(event);
 
-                    this.channel.ack(message);
-
-                } catch (error) {
-
-                    console.error(error);
-
-                    this.channel.nack(
-                        message,
-                        false,
-                        false
-                    );
-                }
-            }
-        );
-    }
+          this.channel.ack(message);
+        } catch (error) {
+          this.channel.nack(message, false, false);
+        }
+      },
+    );
+  }
 }
 
 module.exports = EventConsumer;

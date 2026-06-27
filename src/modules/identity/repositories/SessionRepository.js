@@ -107,6 +107,17 @@ class SessionRepository {
 
     await executor.query(query);
   }
+
+  async deleteExpired(tx = null) {
+    const query = `
+    DELETE FROM sessions
+    WHERE expires_at < NOW()
+  `;
+
+    const executor = tx || this.db;
+
+    await executor.query(query);
+  }
 }
 
 module.exports = SessionRepository;

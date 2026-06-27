@@ -1,33 +1,23 @@
 // src/infrastructure/bullmq/JobProducer.js
 
+const QueueManager = require("./QueueManager");
+
 class JobProducer {
-    constructor(queueManager) {
-        this.queue = queueManager.getQueue();
-    }
+  constructor(queueName) {
+    this.queue = QueueManager.getQueue(queueName);
+  }
 
-    async addJob(
-        jobName,
-        payload,
-        options = {}
-    ) {
+  async enqueue(jobName, payload, options = {}) {
+    const job = await this.queue.add(
+      jobName,
 
-        await this.queue.add(
-            jobName,
-            payload,
-            {
-                attempts: 3,
-                backoff: {
-                    type: "exponential",
-                    delay: 3000
-                },
-                ...options
-            }
-        );
+      payload,
 
-        console.log(
-            `Job added ${jobName}`
-        );
-    }
+      options,
+    );
+
+    return job.id;
+  }
 }
 
 module.exports = JobProducer;

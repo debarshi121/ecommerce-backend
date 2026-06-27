@@ -51,7 +51,18 @@ class RoleRepository {
     return result.rows[0] || null;
   }
 
-  async assignPermission(roleId, permissionId, tx = null) {
+  async delete(roleId, tx = null) {
+    const query = `
+      DELETE FROM roles
+      WHERE id = $1
+    `;
+
+    const executor = tx || this.db;
+
+    await executor.query(query, [roleId]);
+  }
+
+  async addPermission(roleId, permissionId, tx = null) {
     const query = `
       INSERT INTO role_permissions (
         role_id,
@@ -75,6 +86,24 @@ class RoleRepository {
     const executor = tx || this.db;
 
     await executor.query(query, [roleId, permissionId]);
+  }
+
+  async findPermissions(roleId, tx = null) {
+    const query = `
+      SELECT
+        p.id,
+        p.name
+      FROM role_permissions rp
+      JOIN permissions p
+        ON p.id = rp.permission_id
+      WHERE rp.role_id = $1
+    `;
+
+    const executor = tx || this.db;
+
+    const result = await executor.query(query, [roleId]);
+
+    return result.rows;
   }
 }
 

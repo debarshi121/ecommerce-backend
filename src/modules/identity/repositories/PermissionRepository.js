@@ -51,22 +51,29 @@ class PermissionRepository {
     return result.rows[0] || null;
   }
 
-  async findByRoleId(roleId, tx = null) {
+  async findAll(tx = null) {
     const query = `
-      SELECT p.*
-      FROM permissions p
-
-      INNER JOIN role_permissions rp
-        ON p.id = rp.permission_id
-
-      WHERE rp.role_id = $1
+      SELECT *
+      FROM permissions
+      ORDER BY name
     `;
 
     const executor = tx || this.db;
 
-    const result = await executor.query(query, [roleId]);
+    const result = await executor.query(query);
 
     return result.rows;
+  }
+
+  async delete(permissionId, tx = null) {
+    const query = `
+      DELETE FROM permissions
+      WHERE id = $1
+    `;
+
+    const executor = tx || this.db;
+
+    await executor.query(query, [permissionId]);
   }
 }
 

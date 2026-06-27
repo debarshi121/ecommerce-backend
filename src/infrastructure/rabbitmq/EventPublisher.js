@@ -1,30 +1,39 @@
 // src/infrastructure/rabbitmq/EventPublisher.js
 
 class EventPublisher {
-    constructor(rabbitClient) {
-        this.channel = rabbitClient.getChannel();
-    }
+  constructor(rabbitClient) {
+    this.channel = rabbitClient.getChannel();
 
-    async publish(exchange, routingKey, payload) {
+    this.exchange = "domain-events";
+  }
 
-        await this.channel.assertExchange(
-            exchange,
-            "topic",
-            { durable: true }
-        );
+  publish(eventName, payload) {
+    const message = {
+      eventName,
 
-        this.channel.publish(
-            exchange,
-            routingKey,
-            Buffer.from(
-                JSON.stringify(payload)
-            )
-        );
+      timestamp: new Date().toISOString(),
 
-        console.log(
-            `Published ${routingKey}`
-        );
-    }
+      data: payload,
+    };
+
+    this.channel.publish(
+      this.exchange,
+
+      eventName,
+
+      Buffer.from(JSON.stringify(message)),
+
+      {
+        persistent: true,
+      },
+    );
+  }
+
+  async ensureExchange() {
+    await this.channel.assertExchange(this.exchange, "topic", {
+      durable: true,
+    });
+  }
 }
 
 module.exports = EventPublisher;

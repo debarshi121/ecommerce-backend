@@ -1,57 +1,42 @@
 // src/infrastructure/postgres/PostgresClient.js
 
 const { Pool } = require("pg");
+const postgresConfig = require("../../config/postgres");
 
 class PostgresClient {
-    static instance = null;
+  static instance = null;
 
-    constructor() {
-        if (PostgresClient.instance) {
-            return PostgresClient.instance;
-        }
+  constructor() {
+    this.pool = new Pool(postgresConfig);
+  }
 
-        this.pool = new Pool({
-            host: process.env.DB_HOST,
-            port: process.env.DB_PORT,
-            user: process.env.DB_USER,
-            password: process.env.DB_PASSWORD,
-            database: process.env.DB_NAME,
-            max: 20,                // max connections
-            idleTimeoutMillis: 30000,
-            connectionTimeoutMillis: 5000
-        });
+  async verifyConnection() {
+    const client = await this.pool.connect();
 
-        PostgresClient.instance = this;
+    client.release();
+
+    return true;
+  }
+
+  async query(text, params = []) {
+    return this.pool.query(text, params);
+  }
+
+  async getClient() {
+    return this.pool.connect();
+  }
+
+  async close() {
+    await this.pool.end();
+  }
+
+  static getInstance() {
+    if (!this.instance) {
+      this.instance = new PostgresClient();
     }
 
-    async connect() {
-        try {
-            const client = await this.pool.connect();
-
-            console.log("PostgreSQL connected");
-
-            client.release();
-        } catch (error) {
-            console.error("PostgreSQL connection failed", error);
-            throw error;
-        }
-    }
-
-    async query(text, params = []) {
-        return this.pool.query(text, params);
-    }
-
-    getPool() {
-        return this.pool;
-    }
-
-    static getInstance() {
-        if (!PostgresClient.instance) {
-            PostgresClient.instance = new PostgresClient();
-        }
-
-        return PostgresClient.instance;
-    }
+    return this.instance;
+  }
 }
 
 module.exports = PostgresClient;

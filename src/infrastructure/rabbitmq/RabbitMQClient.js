@@ -3,46 +3,57 @@
 const amqp = require("amqplib");
 
 class RabbitMQClient {
-    static instance = null;
+  static instance = null;
 
-    constructor() {
-        if (RabbitMQClient.instance) {
-            return RabbitMQClient.instance;
-        }
+  constructor() {
+    this.connection = null;
+    this.channel = null;
+  }
 
+  async connect() {
+    if (this.connection && this.channel) {
+      return;
+    }
+
+    this.connection = await amqp.connect(url);
+
+    this.channel = await this.connection.createChannel();
+
+    this.connection.on(
+      "close",
+
+      () => {
         this.connection = null;
         this.channel = null;
+      },
+    );
+  }
 
-        RabbitMQClient.instance = this;
+  getChannel() {
+    if (!this.channel) {
+      throw new Error("RabbitMQ not connected");
     }
 
-    async connect() {
-        try {
-            this.connection = await amqp.connect(
-                `amqp://${process.env.RABBITMQ_USER}:${process.env.RABBITMQ_PASSWORD}@${process.env.RABBITMQ_HOST}:${process.env.RABBITMQ_PORT}`
-            );
+    return this.channel;
+  }
 
-            this.channel = await this.connection.createChannel();
-
-            console.log("RabbitMQ connected");
-
-        } catch (error) {
-            console.error("RabbitMQ connection failed", error);
-            throw error;
-        }
+  async close() {
+    if (this.channel) {
+      await this.channel.close();
     }
 
-    getChannel() {
-        return this.channel;
+    if (this.connection) {
+      await this.connection.close();
+    }
+  }
+
+  static getInstance() {
+    if (!RabbitMQClient.instance) {
+      RabbitMQClient.instance = new RabbitMQClient();
     }
 
-    static getInstance() {
-        if (!RabbitMQClient.instance) {
-            RabbitMQClient.instance = new RabbitMQClient();
-        }
-
-        return RabbitMQClient.instance;
-    }
+    return RabbitMQClient.instance;
+  }
 }
 
 module.exports = RabbitMQClient;
