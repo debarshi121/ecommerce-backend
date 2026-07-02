@@ -25,5 +25,13 @@ module.exports = ({ sessionController, jwtMiddleware }) => {
     sessionController.logoutAllDevices.bind(sessionController),
   );
 
+  router.get(
+    "/me",
+
+    jwtMiddleware.authenticate.bind(jwtMiddleware),
+
+    sessionController.getCurrentUser.bind(sessionController),
+  );
+
   return router;
 };

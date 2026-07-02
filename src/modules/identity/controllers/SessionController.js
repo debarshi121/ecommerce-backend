@@ -38,6 +38,16 @@ class SessionController {
       next(error);
     }
   }
+
+  async getCurrentUser(req, res, next) {
+    try {
+      const user = await this.authService.getCurrentUser(req.user.id);
+
+      return res.status(200).json(user);
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 module.exports = SessionController;

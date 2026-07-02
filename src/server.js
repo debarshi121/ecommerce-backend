@@ -1,56 +1,114 @@
 // src/server.js
+
 const http = require("http");
 
 require("dotenv").config();
 
 const createApp = require("./app/createApp");
 
-const PostgresClient = require(
-    "./infrastructure/postgres/PostgresClient"
-);
+const PostgresClient = require("./infrastructure/postgres/PostgresClient");
+const RedisClient = require("./infrastructure/redis/RedisClient");
+const RabbitMQClient = require("./infrastructure/rabbitmq/RabbitMQClient");
+const SocketServer = require("./infrastructure/websocket/SocketServer");
 
-const RedisClient = require(
-    "./infrastructure/redis/RedisClient"
-);
+const registerDependencies = require("./bootstrap/registerDependencies");
 
-const RabbitMQClient = require(
-    "./infrastructure/rabbitmq/RabbitMQClient"
-);
+const registerJobs = require("./bootstrap/registerJobs");
+const registerWorkers = require("./bootstrap/registerWorkers");
 
-const SocketServer =
-    require("./infrastructure/websocket/SocketServer");
+const EventPublisher = require("./infrastructure/rabbitmq/EventPublisher");
 
 const PORT = process.env.PORT || 3000;
 
 async function bootstrap() {
-    try {
-        const db = PostgresClient.getInstance();
-        await db.connect();
+  try {
+    /*
+     ----------------------------------
+     Connect infrastructure
+     ----------------------------------
+    */
 
-        const redis = RedisClient.getInstance();
-        await redis.connect();
+    const db = PostgresClient.getInstance();
+    await db.connect();
 
-        const rabbit = RabbitMQClient.getInstance();
-        await rabbit.connect();
+    const redis = RedisClient.getInstance();
+    await redis.connect();
 
-        const app = createApp();
+    const rabbit = RabbitMQClient.getInstance();
+    await rabbit.connect();
 
-        const server =
-            http.createServer(app);
+    /*
+     ----------------------------------
+     Build dependency container
+     ----------------------------------
+    */
 
-        const socket =
-            SocketServer.getInstance();
+    const dependencies = registerDependencies();
 
-        socket.initialize(server);
+    /*
+     ----------------------------------
+     Assert RabbitMQ exchanges
+     ----------------------------------
+    */
 
-        server.listen(PORT, () => {
-            console.log(`Server running on ${PORT}`);
-        });
+    const eventPublisher = new EventPublisher(rabbit);
+    await eventPublisher.ensureExchange();
 
-    } catch (error) {
-        console.error(error);
-        process.exit(1);
-    }
+    /*
+     ----------------------------------
+     Create express app
+     ----------------------------------
+    */
+
+    const app = createApp(dependencies);
+
+    /*
+     ----------------------------------
+     Create HTTP server
+     ----------------------------------
+    */
+
+    const server = http.createServer(app);
+
+    /*
+     ----------------------------------
+     Initialize websocket server
+     ----------------------------------
+    */
+
+    const socket = SocketServer.getInstance();
+    socket.initialize(server);
+
+    /*
+     ----------------------------------
+     Start background workers first
+     ----------------------------------
+    */
+
+    registerWorkers(dependencies);
+
+    /*
+     ----------------------------------
+     Register recurring BullMQ jobs
+     ----------------------------------
+    */
+
+    await registerJobs();
+
+    /*
+     ----------------------------------
+     Start server
+     ----------------------------------
+    */
+
+    server.listen(PORT, () => {
+      console.log(`Server running on ${PORT}`);
+    });
+  } catch (error) {
+    console.error("Bootstrap failed", error);
+
+    process.exit(1);
+  }
 }
 
 bootstrap();

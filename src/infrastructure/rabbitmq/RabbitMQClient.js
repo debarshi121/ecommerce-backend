@@ -1,6 +1,7 @@
 // src/infrastructure/rabbitmq/RabbitMQClient.js
 
 const amqp = require("amqplib");
+const rabbitmqConfig = require("../../config/rabbitmq");
 
 class RabbitMQClient {
   static instance = null;
@@ -15,6 +16,9 @@ class RabbitMQClient {
       return;
     }
 
+    const { protocol, host, port, user, password } = rabbitmqConfig;
+    const credentials = user && password ? `${user}:${password}@` : "";
+    const url = `${protocol}://${credentials}${host}:${port}`;
     this.connection = await amqp.connect(url);
 
     this.channel = await this.connection.createChannel();

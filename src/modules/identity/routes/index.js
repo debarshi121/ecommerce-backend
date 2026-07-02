@@ -6,11 +6,18 @@ const otpRoutes = require("./otpRoutes");
 
 const sessionRoutes = require("./sessionRoutes");
 
+const roleRoutes = require("./roleRoutes");
+
+const permissionRoutes = require("./permissionRoutes");
+
 module.exports = ({
   authController,
   otpController,
   sessionController,
+  roleController,
+  permissionController,
   jwtMiddleware,
+  permissionMiddleware,
 }) => {
   return [
     {
@@ -35,6 +42,26 @@ module.exports = ({
       router: sessionRoutes({
         sessionController,
         jwtMiddleware,
+      }),
+    },
+
+    {
+      path: "/role",
+
+      router: roleRoutes({
+        roleController,
+        jwtMiddleware,
+        permissionMiddleware,
+      }),
+    },
+
+    {
+      path: "/permission",
+
+      router: permissionRoutes({
+        permissionController,
+        jwtMiddleware,
+        permissionMiddleware,
       }),
     },
   ];

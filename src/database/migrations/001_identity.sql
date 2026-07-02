@@ -1,7 +1,7 @@
 CREATE EXTENSION
 IF NOT EXISTS "uuid-ossp";
     ---------------------------------------------------
-    CREATE TABLE roles
+    CREATE TABLE IF NOT EXISTS roles
         (
             id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
             name       VARCHAR(100) NOT NULL UNIQUE               ,
@@ -9,7 +9,7 @@ IF NOT EXISTS "uuid-ossp";
         )
     ;
     ---------------------------------------------------
-    CREATE TABLE permissions
+    CREATE TABLE IF NOT EXISTS permissions
         (
             id         UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
             name       VARCHAR(100) NOT NULL UNIQUE               ,
@@ -17,7 +17,7 @@ IF NOT EXISTS "uuid-ossp";
         )
     ;
     ---------------------------------------------------
-    CREATE TABLE users
+    CREATE TABLE IF NOT EXISTS users
         (
             id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
             name          VARCHAR(255) NOT NULL                      ,
@@ -29,7 +29,7 @@ IF NOT EXISTS "uuid-ossp";
         )
     ;
     ---------------------------------------------------
-    CREATE TABLE role_permissions
+    CREATE TABLE IF NOT EXISTS role_permissions
         (
             role_id       UUID REFERENCES roles(id)      ,
             permission_id UUID REFERENCES permissions(id),
@@ -37,7 +37,7 @@ IF NOT EXISTS "uuid-ossp";
         )
     ;
     ---------------------------------------------------
-    CREATE TABLE sessions
+    CREATE TABLE IF NOT EXISTS sessions
         (
             id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
             user_id       UUID REFERENCES users(id)                  ,
@@ -48,9 +48,11 @@ IF NOT EXISTS "uuid-ossp";
         )
     ;
     ---------------------------------------------------
-    ALTER TABLE role_permissions
-        ADD CONSTRAINT unique_role_permission UNIQUE
-            (
-                role_id,
-                permission_id
-            );
+    DO $$ BEGIN
+        IF NOT EXISTS (
+            SELECT 1 FROM pg_constraint WHERE conname = 'unique_role_permission'
+        ) THEN
+            ALTER TABLE role_permissions
+                ADD CONSTRAINT unique_role_permission UNIQUE (role_id, permission_id);
+        END IF;
+    END $$;

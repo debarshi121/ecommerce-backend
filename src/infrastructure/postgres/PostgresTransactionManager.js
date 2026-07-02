@@ -24,6 +24,10 @@ class PostgresTransactionManager {
       client.release();
     }
   }
+
+  async execute(callback) {
+    return this.runInTransaction(callback);
+  }
 }
 
 module.exports = PostgresTransactionManager;

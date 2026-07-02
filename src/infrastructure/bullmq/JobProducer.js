@@ -18,6 +18,10 @@ class JobProducer {
 
     return job.id;
   }
+
+  async addJob(jobName, payload, options = {}) {
+    return this.enqueue(jobName, payload, options);
+  }
 }
 
 module.exports = JobProducer;

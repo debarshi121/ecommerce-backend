@@ -18,6 +18,10 @@ class PostgresClient {
     return true;
   }
 
+  async connect() {
+    await this.verifyConnection();
+  }
+
   async query(text, params = []) {
     return this.pool.query(text, params);
   }

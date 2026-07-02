@@ -7,15 +7,15 @@ class OtpStore {
     return `identity:otp:${email}`;
   }
 
-  async saveOtp(email, otp, ttl) {
+  async save(email, otp, ttl = 300) {
     await this.cacheService.set(this.getKey(email), otp, ttl);
   }
 
-  async getOtp(email) {
+  async get(email) {
     return this.cacheService.get(this.getKey(email));
   }
 
-  async deleteOtp(email) {
+  async delete(email) {
     await this.cacheService.delete(this.getKey(email));
   }
 }

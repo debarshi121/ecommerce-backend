@@ -59,6 +59,10 @@ class SessionService {
 
     return session;
   }
+
+  async cleanupExpiredSessions() {
+    await this.sessionRepository.deleteExpired();
+  }
 }
 
 module.exports = SessionService;

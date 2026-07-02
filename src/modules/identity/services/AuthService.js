@@ -5,7 +5,7 @@ class AuthService {
     tokenService,
     sessionService,
     transactionManager,
-    eventPublisher,
+    outboxService,
     authenticationProviderFactory,
   }) {
     this.userRepository = userRepository;
@@ -13,7 +13,7 @@ class AuthService {
     this.tokenService = tokenService;
     this.sessionService = sessionService;
     this.transactionManager = transactionManager;
-    this.eventPublisher = eventPublisher;
+    this.outboxService = outboxService;
     this.authenticationProviderFactory = authenticationProviderFactory;
   }
 
@@ -43,6 +43,7 @@ class AuthService {
         client,
       );
 
+      // create session
       const refreshToken = await this.sessionService.createSession(
         {
           userId: createdUser.id,
@@ -52,45 +53,44 @@ class AuthService {
         client,
       );
 
+      // save event in outbox table
+      await this.outboxService.addEvent(
+        {
+          eventName: "user.registered",
+
+          exchange: "identity.exchange",
+
+          routingKey: "user.registered",
+
+          payload: {
+            userId: createdUser.id,
+            email: createdUser.email,
+          },
+        },
+
+        client,
+      );
+
       return {
         user: createdUser,
         refreshToken,
       };
     });
 
-    // Step 4 — generate access token AFTER transaction success
+    // Step 4 — generate access token AFTER commit
     const accessToken = this.tokenService.generateAccessToken(result.user);
 
-    // Step 5 — publish event AFTER commit
-    // (later this becomes Outbox Pattern)
-
-    try {
-      await this.eventPublisher.publish("user.registered", {
-        userId: result?.user?.id,
-        email: result?.user?.email,
-      });
-    } catch (error) {
-      console.error("Failed to publish user.registered event", error);
-
-      /*
-      DO NOT throw.
-
-      Registration already succeeded.
-
-      Later:
-      save to outbox table
-    */
-    }
-
-    // Step 6 — return response
+    // Step 5 — return response
     return {
       user: {
-        id: result?.user?.id,
-        name: result?.user?.name,
-        email: result?.user?.email,
+        id: result.user.id,
+        name: result.user.name,
+        email: result.user.email,
       },
+
       accessToken,
-      refreshToken,
+
+      refreshToken: result.refreshToken,
     };
   }
 
@@ -107,13 +107,12 @@ class AuthService {
       deviceName: data.deviceName,
     });
 
-    try {
-      await this.eventPublisher.publish("user.logged_in", {
-        userId: user.id,
-      });
-    } catch (error) {
-      console.error("Failed to publish user.logged_in event", error);
-    }
+    await this.outboxService.addEvent({
+      eventName: "user.logged_in",
+      exchange: "identity.exchange",
+      routingKey: "user.logged_in",
+      payload: { userId: user.id },
+    });
 
     return {
       accessToken,
@@ -141,16 +140,19 @@ class AuthService {
     };
   }
 
+  async refreshToken(refreshToken) {
+    return this.refreshAccessToken(refreshToken);
+  }
+
   async logout(sessionId) {
     await this.sessionService.deleteSession(sessionId);
 
-    try {
-      await this.eventPublisher.publish("user.logged_out", {
-        sessionId,
-      });
-    } catch (error) {
-      console.error("Failed to publish user.logged_out event", error);
-    }
+    await this.outboxService.addEvent({
+      eventName: "user.logged_out",
+      exchange: "identity.exchange",
+      routingKey: "user.logged_out",
+      payload: { sessionId },
+    });
 
     return {
       success: true,
@@ -160,6 +162,13 @@ class AuthService {
   async logoutAllDevices(userId) {
     await this.sessionService.deleteAllUserSessions(userId);
 
+    await this.outboxService.addEvent({
+      eventName: "user.logged_out_all_devices",
+      exchange: "identity.exchange",
+      routingKey: "user.logged_out_all_devices",
+      payload: { userId },
+    });
+
     return {
       success: true,
     };
@@ -168,19 +177,21 @@ class AuthService {
   async requestOtp(data) {
     const otp = this.otpService.generateOtp(data.email);
 
-    try {
-      await this.eventPublisher.publish("auth.otp.required", {
-        email: data.email,
-        otp,
-      });
-    } catch (error) {
-      console.error(error);
-      throw error;
-    }
+    await this.outboxService.addEvent({
+      eventName: "auth.otp.required",
+      exchange: "identity.exchange",
+      routingKey: "auth.otp.required",
+      payload: { email: data.email, otp },
+    });
 
     return {
       success: true,
     };
+  }
+
+  async getCurrentUser(userId) {
+    const user = await this.userRepository.findById(userId);
+    return user;
   }
 }
 
