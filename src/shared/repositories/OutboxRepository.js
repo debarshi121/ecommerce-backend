@@ -11,9 +11,9 @@ class OutboxRepository {
     const query = `
       INSERT INTO outbox_events (
         id,
-        event_name,
+        "eventName",
         exchange,
-        routing_key,
+        "routingKey",
         payload
       )
       VALUES ($1,$2,$3,$4,$5)
@@ -42,7 +42,7 @@ class OutboxRepository {
       SELECT *
       FROM outbox_events
       WHERE processed = false
-      ORDER BY created_at ASC
+      ORDER BY "createdAt" ASC
       LIMIT $1
     `;
 

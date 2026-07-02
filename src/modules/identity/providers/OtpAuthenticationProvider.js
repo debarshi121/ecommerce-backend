@@ -16,7 +16,7 @@ class OtpAuthenticationProvider extends AuthenticationProvider {
 
     const user = await this.userRepository.findByEmail(email);
 
-    if (!user || !user.is_active) {
+    if (!user || !user.isActive) {
       throw new Error("Authentication failed");
     }
 

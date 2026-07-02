@@ -24,7 +24,7 @@ class CredentialService {
       throw new Error("Invalid credentials");
     }
 
-    const isValid = await this.verifyPassword(password, user.password_hash);
+    const isValid = await this.verifyPassword(password, user.passwordHash);
 
     if (!isValid) {
       throw new Error("Invalid credentials");

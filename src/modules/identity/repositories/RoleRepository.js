@@ -65,8 +65,8 @@ class RoleRepository {
   async addPermission(roleId, permissionId, tx = null) {
     const query = `
       INSERT INTO role_permissions (
-        role_id,
-        permission_id
+        "roleId",
+        "permissionId"
       )
       VALUES ($1,$2)
     `;
@@ -79,8 +79,8 @@ class RoleRepository {
   async removePermission(roleId, permissionId, tx = null) {
     const query = `
       DELETE FROM role_permissions
-      WHERE role_id = $1
-      AND permission_id = $2
+      WHERE "roleId" = $1
+      AND "permissionId" = $2
     `;
 
     const executor = tx || this.db;
@@ -95,8 +95,8 @@ class RoleRepository {
         p.name
       FROM role_permissions rp
       JOIN permissions p
-        ON p.id = rp.permission_id
-      WHERE rp.role_id = $1
+        ON p.id = rp."permissionId"
+      WHERE rp."roleId" = $1
     `;
 
     const executor = tx || this.db;

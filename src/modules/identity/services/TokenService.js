@@ -12,30 +12,45 @@ class TokenService {
   generateAccessToken(user) {
     const payload = {
       userId: user.id,
-      role: user.role,
+      roleId: user.roleId,
+      tokenVersion: user.tokenVersion,
+      type: "access",
     };
 
     return jwt.sign(payload, this.accessSecret, {
       expiresIn: "15m",
+      issuer: "ecommerce.com",
     });
   }
 
   generateRefreshToken(user) {
     const payload = {
       userId: user.id,
+      type: "refresh",
     };
 
     return jwt.sign(payload, this.refreshSecret, {
       expiresIn: "30d",
+      issuer: "ecommerce.com",
     });
   }
 
   verifyAccessToken(token) {
-    return jwt.verify(token, this.accessSecret);
+    const decoded = jwt.verify(token, this.accessSecret);
+    if (decoded.type !== "access") {
+      throw new Error("Invalid token type");
+    }
+
+    return decoded;
   }
 
   verifyRefreshToken(token) {
-    return jwt.verify(token, this.refreshSecret);
+    const decoded = jwt.verify(token, this.refreshSecret);
+    if (decoded.type !== "refresh") {
+      throw new Error("Invalid token type");
+    }
+
+    return decoded;
   }
 
   decode(token) {

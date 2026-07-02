@@ -8,10 +8,10 @@ class SessionRepository {
   async create(session, tx = null) {
     const query = `
       INSERT INTO sessions (
-        user_id,
-        refresh_token,
-        device_name,
-        expires_at
+        "userId",
+        "refreshToken",
+        "deviceName",
+        "expiresAt"
       )
       VALUES ($1,$2,$3,$4)
       RETURNING *
@@ -35,7 +35,7 @@ class SessionRepository {
     const query = `
       SELECT *
       FROM sessions
-      WHERE refresh_token = $1
+      WHERE "refreshToken" = $1
       LIMIT 1
     `;
 
@@ -50,7 +50,7 @@ class SessionRepository {
     const query = `
       SELECT *
       FROM sessions
-      WHERE user_id = $1
+      WHERE "userId" = $1
     `;
 
     const executor = tx || this.db;
@@ -74,7 +74,7 @@ class SessionRepository {
   async deleteByUserId(userId, tx = null) {
     const query = `
       DELETE FROM sessions
-      WHERE user_id = $1
+      WHERE "userId" = $1
     `;
 
     const executor = tx || this.db;
@@ -85,7 +85,7 @@ class SessionRepository {
   async updateRefreshToken(sessionId, newRefreshToken, tx = null) {
     const query = `
       UPDATE sessions
-      SET refresh_token = $1
+      SET "refreshToken" = $1
       WHERE id = $2
       RETURNING *
     `;
@@ -100,7 +100,7 @@ class SessionRepository {
   async deleteExpiredSessions(tx = null) {
     const query = `
       DELETE FROM sessions
-      WHERE expires_at < NOW()
+      WHERE "expiresAt" < NOW()
     `;
 
     const executor = tx || this.db;
@@ -111,7 +111,7 @@ class SessionRepository {
   async deleteExpired(tx = null) {
     const query = `
     DELETE FROM sessions
-    WHERE expires_at < NOW()
+    WHERE "expiresAt" < NOW()
   `;
 
     const executor = tx || this.db;

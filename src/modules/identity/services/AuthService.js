@@ -6,6 +6,7 @@ class AuthService {
     sessionService,
     transactionManager,
     outboxService,
+    tokenBlacklistService,
     authenticationProviderFactory,
   }) {
     this.userRepository = userRepository;
@@ -14,6 +15,7 @@ class AuthService {
     this.sessionService = sessionService;
     this.transactionManager = transactionManager;
     this.outboxService = outboxService;
+    this.tokenBlacklistService = tokenBlacklistService;
     this.authenticationProviderFactory = authenticationProviderFactory;
   }
 
@@ -144,8 +146,14 @@ class AuthService {
     return this.refreshAccessToken(refreshToken);
   }
 
-  async logout(sessionId) {
+  async logout(sessionId, accessToken) {
     await this.sessionService.deleteSession(sessionId);
+
+    const decoded = this.tokenService.decode(accessToken);
+
+    const expiresIn = decoded.exp - Math.floor(Date.now() / 1000);
+
+    await this.tokenBlacklistService.blacklist(accessToken, expiresIn);
 
     await this.outboxService.addEvent({
       eventName: "user.logged_out",
@@ -160,6 +168,7 @@ class AuthService {
   }
 
   async logoutAllDevices(userId) {
+    await this.userRepository.incrementTokenVersion(userId);
     await this.sessionService.deleteAllUserSessions(userId);
 
     await this.outboxService.addEvent({

@@ -7,17 +7,18 @@ class UserRepository {
 
   async findByEmail(email, tx = null) {
     const query = `
-      SELECT 
+      SELECT
         u.id,
         u.name,
         u.email,
-        u.password_hash,
-        u.role_id,
-        u.is_active,
+        u."passwordHash",
+        u."roleId",
+        u."isActive",
+        u."tokenVersion",
         r.name as role
       FROM users u
       LEFT JOIN roles r
-        ON u.role_id = r.id
+        ON u."roleId" = r.id
       WHERE u.email = $1
       LIMIT 1
     `;
@@ -31,16 +32,17 @@ class UserRepository {
 
   async findById(userId, tx = null) {
     const query = `
-      SELECT 
+      SELECT
         u.id,
         u.name,
         u.email,
-        u.role_id,
-        u.is_active,
+        u."roleId",
+        u."isActive",
+        u."tokenVersion",
         r.name as role
       FROM users u
       LEFT JOIN roles r
-        ON u.role_id = r.id
+        ON u."roleId" = r.id
       WHERE u.id = $1
       LIMIT 1
     `;
@@ -57,8 +59,8 @@ class UserRepository {
       INSERT INTO users (
         name,
         email,
-        password_hash,
-        role_id
+        "passwordHash",
+        "roleId"
       )
       VALUES ($1,$2,$3,$4)
       RETURNING *
@@ -90,11 +92,11 @@ class UserRepository {
       SELECT p.name
       FROM users u
       JOIN roles r
-        ON u.role_id = r.id
+        ON u."roleId" = r.id
       JOIN role_permissions rp
-        ON rp.role_id = r.id
+        ON rp."roleId" = r.id
       JOIN permissions p
-        ON p.id = rp.permission_id
+        ON p.id = rp."permissionId"
       WHERE u.id = $1
     `;
 
@@ -103,6 +105,18 @@ class UserRepository {
     const result = await executor.query(query, [userId]);
 
     return result.rows;
+  }
+
+  async incrementTokenVersion(userId, tx = null) {
+    const query = `
+      UPDATE users
+      SET "tokenVersion" = "tokenVersion" + 1
+      WHERE id = $1
+    `;
+
+    const executor = tx || this.db;
+
+    await executor.query(query, [userId]);
   }
 }
 

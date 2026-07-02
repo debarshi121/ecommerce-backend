@@ -56,7 +56,7 @@ async function seed() {
   */
 
   await db.query(`
-    INSERT INTO role_permissions(role_id, permission_id)
+    INSERT INTO role_permissions("roleId", "permissionId")
 
     SELECT
       r.id,
@@ -77,7 +77,7 @@ async function seed() {
   */
 
   await db.query(`
-    INSERT INTO role_permissions(role_id, permission_id)
+    INSERT INTO role_permissions("roleId", "permissionId")
 
     SELECT
       r.id,

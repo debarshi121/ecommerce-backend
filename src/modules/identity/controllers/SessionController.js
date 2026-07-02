@@ -17,7 +17,15 @@ class SessionController {
 
   async logout(req, res, next) {
     try {
-      await this.authService.logout(req.body.sessionId);
+      const authHeader = req.headers.authorization;
+
+      if (!authHeader || !authHeader.startsWith("Bearer ")) {
+        throw new Error("Authorization header missing or invalid format");
+      }
+
+      const accessToken = authHeader.split(" ")[1];
+
+      await this.authService.logout(req.body.sessionId, accessToken);
 
       return res.status(200).json({
         success: true,

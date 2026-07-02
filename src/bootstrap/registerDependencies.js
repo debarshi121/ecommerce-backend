@@ -42,6 +42,8 @@ const CredentialService = require("../modules/identity/services/CredentialServic
 
 const TokenService = require("../modules/identity/services/TokenService");
 
+const TokenBlacklistService = require("../modules/identity/services/TokenBlacklistService");
+
 const SessionService = require("../modules/identity/services/SessionService");
 
 const OtpService = require("../modules/identity/services/OtpService");
@@ -141,6 +143,10 @@ function registerDependencies() {
 
   const tokenService = new TokenService();
 
+  const tokenBlacklistService = new TokenBlacklistService({
+    cacheService,
+  });
+
   const otpService = new OtpService({
     otpStore,
     eventPublisher,
@@ -166,7 +172,9 @@ function registerDependencies() {
     eventPublisher,
   });
 
-  const passwordProvider = new PasswordAuthenticationProvider(credentialService);
+  const passwordProvider = new PasswordAuthenticationProvider(
+    credentialService,
+  );
 
   const otpProvider = new OtpAuthenticationProvider(userRepository, otpService);
 
@@ -182,6 +190,7 @@ function registerDependencies() {
     sessionService,
     transactionManager,
     outboxService,
+    tokenBlacklistService,
     authenticationProviderFactory,
   });
 
@@ -210,6 +219,7 @@ function registerDependencies() {
   const jwtMiddleware = new JwtMiddleware({
     tokenService,
     userRepository,
+    tokenBlacklistService,
   });
 
   const permissionMiddleware = new PermissionMiddleware({

@@ -1,39 +1,43 @@
 // src/infrastructure/redis/CacheService.js
 
 class CacheService {
-    constructor(redisClient) {
-        this.redis = redisClient.getClient();
+  constructor(redisClient) {
+    this.redis = redisClient.getClient();
+  }
+
+  async set(key, value, ttl = null) {
+    const serialized = JSON.stringify(value);
+
+    if (ttl) {
+      await this.redis.set(key, serialized, {
+        EX: ttl,
+      });
+
+      return;
     }
 
-    async set(key, value, ttl = 3600) {
-        await this.redis.set(
-            key,
-            JSON.stringify(value),
-            {
-                EX: ttl
-            }
-        );
+    await this.redis.set(key, serialized);
+  }
+
+  async get(key) {
+    const value = await this.redis.get(key);
+
+    if (!value) {
+      return null;
     }
 
-    async get(key) {
-        const value = await this.redis.get(key);
+    return JSON.parse(value);
+  }
 
-        if (!value) {
-            return null;
-        }
+  async delete(key) {
+    await this.redis.del(key);
+  }
 
-        return JSON.parse(value);
-    }
+  async exists(key) {
+    const result = await this.redis.exists(key);
 
-    async delete(key) {
-        await this.redis.del(key);
-    }
-
-    async exists(key) {
-        const result = await this.redis.exists(key);
-
-        return Boolean(result);
-    }
+    return Boolean(result);
+  }
 }
 
 module.exports = CacheService;
