@@ -10,7 +10,7 @@ const PostgresClient = require("./infrastructure/postgres/PostgresClient");
 const RedisClient = require("./infrastructure/redis/RedisClient");
 const RabbitMQClient = require("./infrastructure/rabbitmq/RabbitMQClient");
 const SocketServer = require("./infrastructure/websocket/SocketServer");
-const Logger = require("./infrastructure/logging/Logger");
+const logger = require("./infrastructure/logging/Logger");
 
 const registerDependencies = require("./bootstrap/registerDependencies");
 
@@ -19,7 +19,6 @@ const registerWorkers = require("./bootstrap/registerWorkers");
 
 const EventPublisher = require("./infrastructure/rabbitmq/EventPublisher");
 
-const logger = Logger.getInstance();
 const PORT = process.env.PORT || 3000;
 
 async function bootstrap() {

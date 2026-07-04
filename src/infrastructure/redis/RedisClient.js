@@ -1,8 +1,7 @@
 // src/infrastructure/redis/RedisClient.js
 
 const { createClient } = require("redis");
-const Logger = require("../logging/Logger");
-const logger = Logger.getInstance();
+const logger = require("../logging/Logger");
 
 class RedisClient {
   static instance = null;

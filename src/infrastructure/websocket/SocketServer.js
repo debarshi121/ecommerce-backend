@@ -1,8 +1,7 @@
 // SocketServer.js
 
 const { Server } = require("socket.io");
-const Logger = require("../logging/Logger");
-const logger = Logger.getInstance();
+const logger = require("../logging/Logger");
 
 class SocketServer {
   static instance = null;

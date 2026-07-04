@@ -1,6 +1,7 @@
 // src/infrastructure/logging/Logger.js
 
 const pino = require("pino");
+const requestContext = require("./RequestContext");
 
 class Logger {
   static instance = null;
@@ -38,25 +39,45 @@ class Logger {
     return Logger.instance;
   }
 
+  getMetadata(meta = {}) {
+    const requestId = requestContext.get("requestId");
+
+    const data = {
+      ...meta,
+    };
+
+    if (requestId) {
+      data.requestId = requestId;
+    }
+
+    return data;
+  }
+
   info(message, meta = {}) {
-    this.logger.info(meta, message);
+    this.logger.info(this.getMetadata(meta), message);
   }
 
   warn(message, meta = {}) {
-    this.logger.warn(meta, message);
+    this.logger.warn(this.getMetadata(meta), message);
   }
 
-  error(message, meta = {}) {
-    this.logger.error(meta, message);
+  error(message, error = null, meta = {}) {
+    this.logger.error(
+      this.getMetadata({
+        error,
+        ...meta,
+      }),
+      message,
+    );
   }
 
   debug(message, meta = {}) {
-    this.logger.debug(meta, message);
+    this.logger.debug(this.getMetadata(meta), message);
   }
 
   fatal(message, meta = {}) {
-    this.logger.fatal(meta, message);
+    this.logger.fatal(this.getMetadata(meta), message);
   }
 }
 
-module.exports = Logger;
+module.exports = Logger.getInstance();
