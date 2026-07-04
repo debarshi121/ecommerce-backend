@@ -1,10 +1,10 @@
-// src/shared/errors/BadRequestError.js
-
 const AppError = require("./AppError");
 
 class BadRequestError extends AppError {
-  constructor(message = "Bad request") {
+  constructor(message = "Bad Request", errors = []) {
     super(message, 400);
+
+    this.errors = errors;
   }
 }
 

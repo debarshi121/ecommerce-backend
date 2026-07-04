@@ -4,27 +4,23 @@ const AppError = require("../shared/errors/AppError");
 
 function registerErrorHandlers(app) {
   app.use((error, req, res, next) => {
-    console.error(error);
-
-    /*
-      Known application error
-    */
-
     if (error instanceof AppError) {
-      return res.status(error.statusCode).json({
+      const response = {
         success: false,
-
         message: error.message,
-      });
+      };
+
+      if (error.errors) {
+        response.errors = error.errors;
+      }
+
+      return res.status(error.statusCode).json(response);
     }
 
-    /*
-      Unknown error
-    */
+    console.error(error);
 
     return res.status(500).json({
       success: false,
-
       message: "Internal server error",
     });
   });
