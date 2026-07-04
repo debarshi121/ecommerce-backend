@@ -29,8 +29,8 @@ IF NOT EXISTS "uuid-ossp";
                 NULL ON
             UPDATE
                 CASCADE                             ,
-                "isActive" BOOLEAN DEFAULT TRUE      ,
-                "createdAt" TIMESTAMP DEFAULT NOW()  ,
+                "isActive" BOOLEAN DEFAULT TRUE     ,
+                "createdAt" TIMESTAMP DEFAULT NOW() ,
                 "tokenVersion" INTEGER DEFAULT 0 );
     ---------------------------------------------------
     CREATE TABLE IF NOT EXISTS role_permissions
@@ -49,15 +49,15 @@ IF NOT EXISTS "uuid-ossp";
     ---------------------------------------------------
     CREATE TABLE IF NOT EXISTS sessions
         (
-            id        UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-            "userId"  UUID REFERENCES users(id) ON
+            id       UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+            "userId" UUID REFERENCES users(id) ON
             DELETE
                 CASCADE ON
             UPDATE
-                CASCADE                        ,
-                "refreshToken" TEXT NOT NULL   ,
-                "deviceName" VARCHAR(255)      ,
-                "expiresAt" TIMESTAMP NOT NULL ,
+                CASCADE                          ,
+                "refreshTokenHash" TEXT NOT NULL ,
+                "deviceName" VARCHAR(255)        ,
+                "expiresAt" TIMESTAMP NOT NULL   ,
                 "createdAt" TIMESTAMP DEFAULT NOW() );
     ---------------------------------------------------
     DO $$

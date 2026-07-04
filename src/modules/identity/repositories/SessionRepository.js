@@ -9,7 +9,7 @@ class SessionRepository {
     const query = `
       INSERT INTO sessions (
         "userId",
-        "refreshToken",
+        "refreshTokenHash",
         "deviceName",
         "expiresAt"
       )
@@ -19,7 +19,7 @@ class SessionRepository {
 
     const values = [
       session.userId,
-      session.refreshToken,
+      session.refreshTokenHash,
       session.deviceName,
       session.expiresAt,
     ];
@@ -31,17 +31,17 @@ class SessionRepository {
     return result.rows[0];
   }
 
-  async findByRefreshToken(refreshToken, tx = null) {
+  async findByRefreshTokenHash(refreshTokenHash, tx = null) {
     const query = `
       SELECT *
       FROM sessions
-      WHERE "refreshToken" = $1
+      WHERE "refreshTokenHash" = $1
       LIMIT 1
     `;
 
     const executor = tx || this.db;
 
-    const result = await executor.query(query, [refreshToken]);
+    const result = await executor.query(query, [refreshTokenHash]);
 
     return result.rows[0] || null;
   }
@@ -82,17 +82,20 @@ class SessionRepository {
     await executor.query(query, [userId]);
   }
 
-  async updateRefreshToken(sessionId, newRefreshToken, tx = null) {
+  async updateRefreshTokenHash(sessionId, newRefreshTokenHash, tx = null) {
     const query = `
       UPDATE sessions
-      SET "refreshToken" = $1
+      SET "refreshTokenHash" = $1
       WHERE id = $2
       RETURNING *
     `;
 
     const executor = tx || this.db;
 
-    const result = await executor.query(query, [newRefreshToken, sessionId]);
+    const result = await executor.query(query, [
+      newRefreshTokenHash,
+      sessionId,
+    ]);
 
     return result.rows[0];
   }

@@ -1,13 +1,15 @@
 // src/modules/identity/services/TokenService.js
 
 const jwt = require("jsonwebtoken");
+const crypto = require("crypto");
+
 const UnauthorizedError = require("../../../shared/errors/UnauthorizedError");
+const jwtConfig = require("../../../config/jwt");
 
 class TokenService {
   constructor() {
-    this.accessSecret = process.env.JWT_ACCESS_SECRET;
-
-    this.refreshSecret = process.env.JWT_REFRESH_SECRET;
+    this.accessSecret = jwtConfig.accessSecret;
+    this.refreshSecret = jwtConfig.refreshSecret;
   }
 
   generateAccessToken(user) {
@@ -19,8 +21,8 @@ class TokenService {
     };
 
     return jwt.sign(payload, this.accessSecret, {
-      expiresIn: "15m",
-      issuer: "ecommerce.com",
+      expiresIn: jwtConfig.accessTokenExpiresIn,
+      issuer: jwtConfig.issuer,
     });
   }
 
@@ -31,39 +33,63 @@ class TokenService {
     };
 
     return jwt.sign(payload, this.refreshSecret, {
-      expiresIn: "30d",
-      issuer: "ecommerce.com",
+      expiresIn: jwtConfig.refreshTokenExpiresIn,
+      issuer: jwtConfig.issuer,
     });
   }
 
   verifyAccessToken(token) {
     try {
-      const decoded = jwt.verify(token, this.accessSecret);
+      const decoded = jwt.verify(token, this.accessSecret, {
+        issuer: jwtConfig.issuer,
+      });
       if (decoded.type !== "access") {
-        throw new Error("Invalid token type");
+        throw new UnauthorizedError("Invalid token type");
       }
       return decoded;
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
         throw new UnauthorizedError("Token expired");
       }
+
+      if (
+        error instanceof jwt.JsonWebTokenError ||
+        error instanceof jwt.NotBeforeError
+      ) {
+        throw new UnauthorizedError("Invalid token");
+      }
+
       throw error;
     }
   }
 
   verifyRefreshToken(token) {
     try {
-      const decoded = jwt.verify(token, this.refreshSecret);
+      const decoded = jwt.verify(token, this.refreshSecret, {
+        issuer: jwtConfig.issuer,
+      });
       if (decoded.type !== "refresh") {
-        throw new Error("Invalid token type");
+        throw new UnauthorizedError("Invalid token type");
       }
       return decoded;
     } catch (error) {
       if (error instanceof jwt.TokenExpiredError) {
         throw new UnauthorizedError("Token expired");
       }
+
+      if (
+        error instanceof jwt.JsonWebTokenError ||
+        error instanceof jwt.NotBeforeError
+      ) {
+        throw new UnauthorizedError("Invalid token");
+      }
+
       throw error;
     }
+  }
+
+  hashRefreshToken(refreshToken) {
+    return crypto.createHash("sha256").update(refreshToken).digest("hex");
   }
 
   decode(token) {

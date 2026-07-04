@@ -156,6 +156,7 @@ function registerDependencies() {
   const sessionService = new SessionService({
     sessionRepository,
     tokenService,
+    transactionManager,
   });
 
   const roleService = new RoleService({

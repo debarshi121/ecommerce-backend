@@ -1,19 +1,28 @@
+const UnauthorizedError = require("../../../shared/errors/UnauthorizedError");
+const jwtConfig = require("../../../config/jwt");
+const DAY_IN_MS = 24 * 60 * 60 * 1000;
+
 class SessionService {
-  constructor({ sessionRepository, tokenService }) {
+  constructor({ sessionRepository, tokenService, transactionManager }) {
     this.sessionRepository = sessionRepository;
 
     this.tokenService = tokenService;
+
+    this.transactionManager = transactionManager;
   }
 
   async createSession({ userId, user, deviceName }, tx = null) {
     const refreshToken = this.tokenService.generateRefreshToken(user);
+    const refreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
 
-    const expiresAt = new Date(Date.now() + 30 * 24 * 60 * 60 * 1000);
+    const expiresAt = new Date(
+      Date.now() + jwtConfig.refreshTokenDays * DAY_IN_MS,
+    );
 
     await this.sessionRepository.create(
       {
         userId,
-        refreshToken,
+        refreshTokenHash,
         deviceName,
         expiresAt,
       },
@@ -24,21 +33,35 @@ class SessionService {
   }
 
   async rotateRefreshToken(oldRefreshToken, user) {
-    const session =
-      await this.sessionRepository.findByRefreshToken(oldRefreshToken);
+    return this.transactionManager.execute(async (tx) => {
+      const refreshTokenHash =
+        this.tokenService.hashRefreshToken(oldRefreshToken);
 
-    if (!session) {
-      throw new Error("Invalid session");
-    }
+      const session = await this.sessionRepository.findByRefreshTokenHash(
+        refreshTokenHash,
+        tx,
+      );
 
-    const newRefreshToken = this.tokenService.generateRefreshToken(user);
+      if (!session) {
+        throw new UnauthorizedError("Invalid refresh token");
+      }
 
-    await this.sessionRepository.updateRefreshToken(
-      session.id,
-      newRefreshToken,
-    );
+      if (session.expiresAt && session.expiresAt < new Date()) {
+        throw new UnauthorizedError("Session expired");
+      }
 
-    return newRefreshToken;
+      const newRefreshToken = this.tokenService.generateRefreshToken(user);
+      const newRefreshTokenHash =
+        this.tokenService.hashRefreshToken(newRefreshToken);
+
+      await this.sessionRepository.updateRefreshTokenHash(
+        session.id,
+        newRefreshTokenHash,
+        tx,
+      );
+
+      return newRefreshToken;
+    });
   }
 
   async deleteSession(sessionId) {
@@ -49,12 +72,18 @@ class SessionService {
     await this.sessionRepository.deleteByUserId(userId, tx);
   }
 
-  async validateSession(refreshToken) {
+  async validateAndGetSession(refreshToken) {
+    const refreshTokenHash = this.tokenService.hashRefreshToken(refreshToken);
+
     const session =
-      await this.sessionRepository.findByRefreshToken(refreshToken);
+      await this.sessionRepository.findByRefreshTokenHash(refreshTokenHash);
 
     if (!session) {
-      throw new Error("Session not found");
+      throw new UnauthorizedError("Invalid refresh token");
+    }
+
+    if (session.expiresAt && session.expiresAt < new Date()) {
+      throw new UnauthorizedError("Session expired");
     }
 
     return session;

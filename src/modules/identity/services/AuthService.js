@@ -142,7 +142,7 @@ class AuthService {
   }
 
   async refreshAccessToken(refreshToken) {
-    await this.sessionService.validateSession(refreshToken);
+    await this.sessionService.validateAndGetSession(refreshToken);
 
     const decoded = this.tokenService.verifyRefreshToken(refreshToken);
 
