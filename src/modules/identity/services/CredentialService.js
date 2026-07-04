@@ -1,6 +1,8 @@
 // src/modules/identity/services/CredentialService.js
 
 const bcrypt = require("bcrypt");
+const NotFoundError = require("../../../shared/errors/NotFoundError");
+const UnauthorizedError = require("../../../shared/errors/UnauthorizedError");
 
 class CredentialService {
   constructor(userRepository) {
@@ -21,13 +23,13 @@ class CredentialService {
     const user = await this.userRepository.findByEmail(email);
 
     if (!user) {
-      throw new Error("Invalid credentials");
+      throw new NotFoundError("User not found");
     }
 
     const isValid = await this.verifyPassword(password, user.passwordHash);
 
     if (!isValid) {
-      throw new Error("Invalid credentials");
+      throw new UnauthorizedError("Invalid credentials");
     }
 
     return user;

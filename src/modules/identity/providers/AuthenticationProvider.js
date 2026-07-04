@@ -1,6 +1,8 @@
+const InternalServerError = require("../../../shared/errors/InternalServerError");
+
 class AuthenticationProvider {
   async authenticate() {
-    throw new Error("authenticate() must be implemented");
+    throw new InternalServerError("authenticate() must be implemented");
   }
 }
 

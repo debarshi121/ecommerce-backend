@@ -1,3 +1,5 @@
+const BadRequestError = require("../../../shared/errors/BadRequestError");
+
 class AuthenticationProviderFactory {
   constructor({ passwordProvider, otpProvider }) {
     this.passwordProvider = passwordProvider;
@@ -13,7 +15,7 @@ class AuthenticationProviderFactory {
         return this.otpProvider;
 
       default:
-        throw new Error("Invalid authentication provider");
+        throw new BadRequestError("Invalid authentication provider");
     }
   }
 }

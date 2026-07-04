@@ -1,6 +1,7 @@
 // src/modules/identity/services/TokenService.js
 
 const jwt = require("jsonwebtoken");
+const UnauthorizedError = require("../../../shared/errors/UnauthorizedError");
 
 class TokenService {
   constructor() {
@@ -36,21 +37,33 @@ class TokenService {
   }
 
   verifyAccessToken(token) {
-    const decoded = jwt.verify(token, this.accessSecret);
-    if (decoded.type !== "access") {
-      throw new Error("Invalid token type");
+    try {
+      const decoded = jwt.verify(token, this.accessSecret);
+      if (decoded.type !== "access") {
+        throw new Error("Invalid token type");
+      }
+      return decoded;
+    } catch (error) {
+      if (error instanceof jwt.TokenExpiredError) {
+        throw new UnauthorizedError("Token expired");
+      }
+      throw error;
     }
-
-    return decoded;
   }
 
   verifyRefreshToken(token) {
-    const decoded = jwt.verify(token, this.refreshSecret);
-    if (decoded.type !== "refresh") {
-      throw new Error("Invalid token type");
+    try {
+      const decoded = jwt.verify(token, this.refreshSecret);
+      if (decoded.type !== "refresh") {
+        throw new Error("Invalid token type");
+      }
+      return decoded;
+    } catch (error) {
+      if (error instanceof jwt.TokenExpiredError) {
+        throw new UnauthorizedError("Token expired");
+      }
+      throw error;
     }
-
-    return decoded;
   }
 
   decode(token) {

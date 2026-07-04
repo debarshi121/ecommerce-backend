@@ -1,4 +1,5 @@
 const AuthenticationProvider = require("./AuthenticationProvider");
+const NotFoundError = require("../../../shared/errors/NotFoundError");
 
 class OtpAuthenticationProvider extends AuthenticationProvider {
   constructor(userRepository, otpService) {
@@ -17,7 +18,7 @@ class OtpAuthenticationProvider extends AuthenticationProvider {
     const user = await this.userRepository.findByEmail(email);
 
     if (!user || !user.isActive) {
-      throw new Error("Authentication failed");
+      throw new NotFoundError("User not found or inactive");
     }
 
     return user;

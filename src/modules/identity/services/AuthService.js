@@ -1,3 +1,5 @@
+const ConflictError = require("../../../shared/errors/ConflictError");
+
 class AuthService {
   constructor({
     userRepository,
@@ -24,7 +26,7 @@ class AuthService {
     const existingUser = await this.userRepository.findByEmail(data.email);
 
     if (existingUser) {
-      throw new Error("Email already exists");
+      throw new ConflictError("Email already exists");
     }
 
     // Step 2 — hash password

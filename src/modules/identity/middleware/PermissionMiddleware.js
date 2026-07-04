@@ -1,5 +1,7 @@
 // src/modules/identity/middleware/PermissionMiddleware.js
 
+const ForbiddenError = require("../../../shared/errors/ForbiddenError");
+
 class PermissionMiddleware {
   constructor({ userRepository }) {
     this.userRepository = userRepository;
@@ -17,7 +19,7 @@ class PermissionMiddleware {
         );
 
         if (!hasPermission) {
-          throw new Error("Forbidden");
+          throw new ForbiddenError(`Missing permission: ${permission}`);
         }
 
         next();

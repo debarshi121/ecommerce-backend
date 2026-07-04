@@ -1,6 +1,8 @@
 // src/modules/identity/services/OtpService.js
 
 const crypto = require("crypto");
+const ForbiddenError = require("../../../shared/errors/ForbiddenError");
+const UnauthorizedError = require("../../../shared/errors/UnauthorizedError");
 
 class OtpService {
   constructor({ otpStore, eventPublisher }) {
@@ -25,11 +27,11 @@ class OtpService {
     const storedOtp = await this.otpStore.get(email);
 
     if (!storedOtp) {
-      throw new Error("OTP expired");
+      throw new ForbiddenError("OTP expired");
     }
 
     if (storedOtp !== otp) {
-      throw new Error("Invalid OTP");
+      throw new UnauthorizedError("Invalid OTP");
     }
 
     await this.otpStore.delete(email);

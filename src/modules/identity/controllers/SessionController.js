@@ -19,10 +19,6 @@ class SessionController {
     try {
       const authHeader = req.headers.authorization;
 
-      if (!authHeader || !authHeader.startsWith("Bearer ")) {
-        throw new Error("Authorization header missing or invalid format");
-      }
-
       const accessToken = authHeader.split(" ")[1];
 
       await this.authService.logout(req.body.sessionId, accessToken);
