@@ -7,7 +7,9 @@ class SessionController {
 
   async refreshToken(req, res, next) {
     try {
-      const result = await this.authService.refreshToken(req.body.refreshToken);
+      const result = await this.authService.refreshAccessToken(
+        req.body.refreshToken,
+      );
 
       return res.status(200).json(result);
     } catch (error) {

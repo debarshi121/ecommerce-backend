@@ -1,4 +1,7 @@
 const ConflictError = require("../../../shared/errors/ConflictError");
+const EventNames = require("../../../shared/constants/EventNames");
+const ExchangeNames = require("../../../shared/constants/ExchangeNames");
+const RoutingKeys = require("../../../shared/constants/RoutingKeys");
 
 class AuthService {
   constructor({
@@ -9,6 +12,7 @@ class AuthService {
     transactionManager,
     outboxService,
     tokenBlacklistService,
+    otpService,
     authenticationProviderFactory,
   }) {
     this.userRepository = userRepository;
@@ -18,6 +22,7 @@ class AuthService {
     this.transactionManager = transactionManager;
     this.outboxService = outboxService;
     this.tokenBlacklistService = tokenBlacklistService;
+    this.otpService = otpService;
     this.authenticationProviderFactory = authenticationProviderFactory;
   }
 
@@ -60,11 +65,11 @@ class AuthService {
       // save event in outbox table
       await this.outboxService.addEvent(
         {
-          eventName: "user.registered",
+          eventName: EventNames.USER_REGISTERED,
 
-          exchange: "identity.exchange",
+          exchange: ExchangeNames.IDENTITY_EXCHANGE,
 
-          routingKey: "user.registered",
+          routingKey: RoutingKeys.USER_REGISTERED,
 
           payload: {
             userId: createdUser.id,
@@ -103,20 +108,32 @@ class AuthService {
 
     const user = await provider.authenticate(data);
 
+    const refreshToken = await this.transactionManager.execute(
+      async (client) => {
+        const token = await this.sessionService.createSession(
+          {
+            userId: user.id,
+            user,
+            deviceName: data.deviceName,
+          },
+          client,
+        );
+
+        await this.outboxService.addEvent(
+          {
+            eventName: EventNames.USER_LOGGED_IN,
+            exchange: ExchangeNames.IDENTITY_EXCHANGE,
+            routingKey: RoutingKeys.USER_LOGGED_IN,
+            payload: { userId: user.id },
+          },
+          client,
+        );
+
+        return token;
+      },
+    );
+
     const accessToken = this.tokenService.generateAccessToken(user);
-
-    const refreshToken = await this.sessionService.createSession({
-      userId: user.id,
-      user,
-      deviceName: data.deviceName,
-    });
-
-    await this.outboxService.addEvent({
-      eventName: "user.logged_in",
-      exchange: "identity.exchange",
-      routingKey: "user.logged_in",
-      payload: { userId: user.id },
-    });
 
     return {
       accessToken,
@@ -144,10 +161,6 @@ class AuthService {
     };
   }
 
-  async refreshToken(refreshToken) {
-    return this.refreshAccessToken(refreshToken);
-  }
-
   async logout(sessionId, accessToken) {
     await this.sessionService.deleteSession(sessionId);
 
@@ -158,9 +171,9 @@ class AuthService {
     await this.tokenBlacklistService.blacklist(accessToken, expiresIn);
 
     await this.outboxService.addEvent({
-      eventName: "user.logged_out",
-      exchange: "identity.exchange",
-      routingKey: "user.logged_out",
+      eventName: EventNames.USER_LOGGED_OUT,
+      exchange: ExchangeNames.IDENTITY_EXCHANGE,
+      routingKey: RoutingKeys.USER_LOGGED_OUT,
       payload: { sessionId },
     });
 
@@ -170,14 +183,19 @@ class AuthService {
   }
 
   async logoutAllDevices(userId) {
-    await this.userRepository.incrementTokenVersion(userId);
-    await this.sessionService.deleteAllUserSessions(userId);
+    await this.transactionManager.execute(async (client) => {
+      await this.userRepository.incrementTokenVersion(userId, client);
+      await this.sessionService.deleteAllUserSessions(userId, client);
 
-    await this.outboxService.addEvent({
-      eventName: "user.logged_out_all_devices",
-      exchange: "identity.exchange",
-      routingKey: "user.logged_out_all_devices",
-      payload: { userId },
+      await this.outboxService.addEvent(
+        {
+          eventName: EventNames.USER_LOGGED_OUT_ALL_DEVICES,
+          exchange: ExchangeNames.IDENTITY_EXCHANGE,
+          routingKey: RoutingKeys.USER_LOGGED_OUT_ALL_DEVICES,
+          payload: { userId },
+        },
+        client,
+      );
     });
 
     return {
@@ -189,9 +207,9 @@ class AuthService {
     const otp = this.otpService.generateOtp(data.email);
 
     await this.outboxService.addEvent({
-      eventName: "auth.otp.required",
-      exchange: "identity.exchange",
-      routingKey: "auth.otp.required",
+      eventName: EventNames.AUTH_OTP_REQUIRED,
+      exchange: ExchangeNames.IDENTITY_EXCHANGE,
+      routingKey: RoutingKeys.AUTH_OTP_REQUIRED,
       payload: { email: data.email, otp },
     });
 

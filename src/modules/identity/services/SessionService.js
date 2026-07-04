@@ -45,8 +45,8 @@ class SessionService {
     await this.sessionRepository.deleteById(sessionId);
   }
 
-  async deleteAllUserSessions(userId) {
-    await this.sessionRepository.deleteByUserId(userId);
+  async deleteAllUserSessions(userId, tx = null) {
+    await this.sessionRepository.deleteByUserId(userId, tx);
   }
 
   async validateSession(refreshToken) {

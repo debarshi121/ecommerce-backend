@@ -192,6 +192,7 @@ function registerDependencies() {
     transactionManager,
     outboxService,
     tokenBlacklistService,
+    otpService,
     authenticationProviderFactory,
   });
 
