@@ -35,6 +35,10 @@ class RedisClient {
     await this.client.connect();
   }
 
+  async disconnect() {
+    await this.client.quit();
+  }
+
   getClient() {
     return this.client;
   }

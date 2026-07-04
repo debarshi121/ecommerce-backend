@@ -90,11 +90,12 @@ const PermissionMiddleware = require("../modules/identity/middleware/PermissionM
 
 /*
 |--------------------------------------------------------------------------
-| Workers
+| Jobs
 |--------------------------------------------------------------------------
 */
 
-const OutboxPublisherWorker = require("../workers/OutboxPublisherWorker");
+const PublishOutboxJob = require("../jobs/PublishOutboxJob");
+const OutboxWorker = require("../workers/OutboxWorker");
 
 function registerDependencies() {
   /*
@@ -228,13 +229,23 @@ function registerDependencies() {
 
   /*
   --------------------------------------------------------------------------
+  Job instances
+  --------------------------------------------------------------------------
+  */
+
+  const publishOutboxJob = new PublishOutboxJob({
+    outboxService,
+    eventBusService,
+  });
+
+  /*
+  --------------------------------------------------------------------------
   Worker instances
   --------------------------------------------------------------------------
   */
 
-  const outboxPublisherWorker = new OutboxPublisherWorker({
-    outboxService,
-    eventBusService,
+  const outboxWorker = new OutboxWorker({
+    publishOutboxJob,
   });
 
   /*
@@ -262,8 +273,13 @@ function registerDependencies() {
     roleService,
     permissionService,
 
+    eventPublisher,
+
+    // jobs
+    publishOutboxJob,
+
     // workers
-    outboxPublisherWorker,
+    outboxWorker,
   };
 }
 

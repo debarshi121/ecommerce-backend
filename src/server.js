@@ -13,11 +13,9 @@ const SocketServer = require("./infrastructure/websocket/SocketServer");
 const logger = require("./infrastructure/logging/Logger");
 
 const registerDependencies = require("./bootstrap/registerDependencies");
-
-const registerJobs = require("./bootstrap/registerJobs");
 const registerWorkers = require("./bootstrap/registerWorkers");
-
-const EventPublisher = require("./infrastructure/rabbitmq/EventPublisher");
+const registerJobs = require("./bootstrap/registerJobs");
+const registerGracefulShutdown = require("./bootstrap/registerGracefulShutdown");
 
 const PORT = process.env.PORT || 3000;
 
@@ -52,8 +50,7 @@ async function bootstrap() {
      ----------------------------------
     */
 
-    const eventPublisher = new EventPublisher(rabbit);
-    await eventPublisher.ensureExchange();
+    await dependencies.eventPublisher.ensureExchange();
 
     /*
      ----------------------------------
@@ -86,7 +83,7 @@ async function bootstrap() {
      ----------------------------------
     */
 
-    registerWorkers(dependencies);
+    const workers = registerWorkers(dependencies);
 
     /*
      ----------------------------------
@@ -105,8 +102,24 @@ async function bootstrap() {
     server.listen(PORT, () => {
       logger.info(`Server running on ${PORT}`);
     });
+
+    /*
+     ----------------------------------
+     Register graceful shutdown
+     ----------------------------------
+    */
+
+    registerGracefulShutdown({
+      server,
+      postgres: db,
+      redis,
+      rabbit,
+      socket,
+      workers,
+    });
   } catch (error) {
     logger.error("Bootstrap failed", error);
+    await logger.flush();
     process.exit(1);
   }
 }

@@ -1,4 +1,4 @@
-class CleanupExpiredSessionsWorker {
+class CleanupExpiredSessionsJob {
   constructor(sessionService) {
     this.sessionService = sessionService;
   }
@@ -8,4 +8,4 @@ class CleanupExpiredSessionsWorker {
   }
 }
 
-module.exports = CleanupExpiredSessionsWorker;
+module.exports = CleanupExpiredSessionsJob;

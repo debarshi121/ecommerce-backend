@@ -1,6 +1,4 @@
-// src/workers/OutboxPublisherWorker.js
-
-class OutboxPublisherWorker {
+class PublishOutboxJob {
   constructor({ outboxService, eventBusService }) {
     this.outboxService = outboxService;
 
@@ -35,4 +33,4 @@ class OutboxPublisherWorker {
   }
 }
 
-module.exports = OutboxPublisherWorker;
+module.exports = PublishOutboxJob;

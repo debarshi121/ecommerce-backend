@@ -78,6 +78,10 @@ class Logger {
   fatal(message, meta = {}) {
     this.logger.fatal(this.getMetadata(meta), message);
   }
+
+  flush() {
+    return new Promise((resolve) => this.logger.flush(resolve));
+  }
 }
 
 module.exports = Logger.getInstance();

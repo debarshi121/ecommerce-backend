@@ -30,6 +30,10 @@ class SocketServer {
     return this.io;
   }
 
+  async close() {
+    this.io.close();
+  }
+
   static getInstance() {
     if (!SocketServer.instance) {
       SocketServer.instance = new SocketServer();

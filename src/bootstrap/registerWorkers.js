@@ -1,20 +1,15 @@
 // src/bootstrap/registerWorkers.js
 
-const QueueWorker = require("../infrastructure/bullmq/QueueWorker");
 const logger = require("../infrastructure/logging/Logger");
 
-const { OUTBOX_QUEUE } = require("../shared/constants/QueueNames");
-
 function registerWorkers(dependencies) {
-  new QueueWorker(
-    OUTBOX_QUEUE,
+  const workers = [];
 
-    async () => {
-      await dependencies.outboxPublisherWorker.handle();
-    },
-  );
+  workers.push(dependencies.outboxWorker);
 
   logger.info("Workers started");
+
+  return workers;
 }
 
 module.exports = registerWorkers;
