@@ -10,6 +10,7 @@ const PostgresClient = require("./infrastructure/postgres/PostgresClient");
 const RedisClient = require("./infrastructure/redis/RedisClient");
 const RabbitMQClient = require("./infrastructure/rabbitmq/RabbitMQClient");
 const SocketServer = require("./infrastructure/websocket/SocketServer");
+const Logger = require("./infrastructure/logging/Logger");
 
 const registerDependencies = require("./bootstrap/registerDependencies");
 
@@ -18,6 +19,7 @@ const registerWorkers = require("./bootstrap/registerWorkers");
 
 const EventPublisher = require("./infrastructure/rabbitmq/EventPublisher");
 
+const logger = Logger.getInstance();
 const PORT = process.env.PORT || 3000;
 
 async function bootstrap() {
@@ -102,11 +104,10 @@ async function bootstrap() {
     */
 
     server.listen(PORT, () => {
-      console.log(`Server running on ${PORT}`);
+      logger.info(`Server running on ${PORT}`);
     });
   } catch (error) {
-    console.error("Bootstrap failed", error);
-
+    logger.error("Bootstrap failed", error);
     process.exit(1);
   }
 }

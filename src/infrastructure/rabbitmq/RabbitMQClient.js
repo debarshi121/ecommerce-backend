@@ -2,6 +2,7 @@
 
 const amqp = require("amqplib");
 const rabbitmqConfig = require("../../config/rabbitmq");
+const InternalServerError = require("../../shared/errors/InternalServerError");
 
 class RabbitMQClient {
   static instance = null;
@@ -35,7 +36,7 @@ class RabbitMQClient {
 
   getChannel() {
     if (!this.channel) {
-      throw new Error("RabbitMQ not connected");
+      throw new InternalServerError("RabbitMQ not connected");
     }
 
     return this.channel;

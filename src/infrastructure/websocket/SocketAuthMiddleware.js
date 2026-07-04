@@ -1,19 +1,16 @@
 // SocketAuthMiddleware.js
+const UnauthorizedError = require("../errors/UnauthorizedError");
 
 function socketAuth(socket, next) {
+  const userId = socket.handshake.auth.userId;
 
-    const userId =
-        socket.handshake.auth.userId;
+  if (!userId) {
+    return next(new UnauthorizedError("Unauthorized"));
+  }
 
-    if (!userId) {
-        return next(
-            new Error("Unauthorized")
-        );
-    }
+  socket.userId = userId;
 
-    socket.userId = userId;
-
-    next();
+  next();
 }
 
 module.exports = socketAuth;

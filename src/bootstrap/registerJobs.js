@@ -1,8 +1,11 @@
 // src/bootstrap/registerJobs.js
 
 const JobProducer = require("../infrastructure/bullmq/JobProducer");
+const Logger = require("../infrastructure/logging/Logger");
 
 const { OUTBOX_QUEUE } = require("../shared/constants/QueueNames");
+
+const logger = Logger.getInstance();
 
 async function registerJobs() {
   const producer = new JobProducer(OUTBOX_QUEUE);
@@ -19,7 +22,7 @@ async function registerJobs() {
     },
   );
 
-  console.log("Scheduled outbox job");
+  logger.info("Scheduled outbox job");
 }
 
 module.exports = registerJobs;
