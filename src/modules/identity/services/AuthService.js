@@ -67,12 +67,13 @@ class AuthService {
         {
           eventName: EventNames.USER_REGISTERED,
 
-          exchange: ExchangeNames.IDENTITY_EXCHANGE,
+          exchange: ExchangeNames.IDENTITY,
 
           routingKey: RoutingKeys.USER_REGISTERED,
 
           payload: {
             userId: createdUser.id,
+            name: createdUser.name,
             email: createdUser.email,
           },
         },
@@ -122,7 +123,7 @@ class AuthService {
         await this.outboxService.addEvent(
           {
             eventName: EventNames.USER_LOGGED_IN,
-            exchange: ExchangeNames.IDENTITY_EXCHANGE,
+            exchange: ExchangeNames.IDENTITY,
             routingKey: RoutingKeys.USER_LOGGED_IN,
             payload: { userId: user.id },
           },
@@ -172,7 +173,7 @@ class AuthService {
 
     await this.outboxService.addEvent({
       eventName: EventNames.USER_LOGGED_OUT,
-      exchange: ExchangeNames.IDENTITY_EXCHANGE,
+      exchange: ExchangeNames.IDENTITY,
       routingKey: RoutingKeys.USER_LOGGED_OUT,
       payload: { sessionId },
     });
@@ -190,7 +191,7 @@ class AuthService {
       await this.outboxService.addEvent(
         {
           eventName: EventNames.USER_LOGGED_OUT_ALL_DEVICES,
-          exchange: ExchangeNames.IDENTITY_EXCHANGE,
+          exchange: ExchangeNames.IDENTITY,
           routingKey: RoutingKeys.USER_LOGGED_OUT_ALL_DEVICES,
           payload: { userId },
         },
@@ -208,7 +209,7 @@ class AuthService {
 
     await this.outboxService.addEvent({
       eventName: EventNames.AUTH_OTP_REQUIRED,
-      exchange: ExchangeNames.IDENTITY_EXCHANGE,
+      exchange: ExchangeNames.IDENTITY,
       routingKey: RoutingKeys.AUTH_OTP_REQUIRED,
       payload: { email: data.email, otp },
     });

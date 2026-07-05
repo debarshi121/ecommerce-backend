@@ -14,6 +14,7 @@ const logger = require("./infrastructure/logging/Logger");
 
 const registerDependencies = require("./bootstrap/registerDependencies");
 const registerWorkers = require("./bootstrap/registerWorkers");
+const registerEventConsumers = require("./bootstrap/registerEventConsumers");
 const registerJobs = require("./bootstrap/registerJobs");
 const registerGracefulShutdown = require("./bootstrap/registerGracefulShutdown");
 
@@ -92,6 +93,14 @@ async function bootstrap() {
     */
 
     await registerJobs();
+
+    /*
+     ----------------------------------
+     Start event consumers
+     ----------------------------------
+    */
+
+    await registerEventConsumers(dependencies);
 
     /*
      ----------------------------------

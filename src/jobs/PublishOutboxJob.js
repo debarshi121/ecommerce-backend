@@ -1,14 +1,15 @@
+const logger = require("../infrastructure/logging/Logger");
+
 class PublishOutboxJob {
   constructor({ outboxService, eventBusService }) {
     this.outboxService = outboxService;
-
     this.eventBusService = eventBusService;
   }
 
-  async handle() {
-    const events = await this.outboxService.getUnprocessedEvents(20);
+  async handle(job) {
+    const pendingEvents = await this.outboxService.getUnprocessedEvents(20);
 
-    for (const event of events) {
+    for (const event of pendingEvents) {
       try {
         await this.eventBusService.publish({
           eventName: event.eventName,
@@ -19,15 +20,21 @@ class PublishOutboxJob {
 
         await this.outboxService.markProcessed(event.id);
 
-        console.log(`Outbox processed ${event.id}`);
+        logger.info("Outbox event published", {
+          eventId: event.id,
+          eventName: event.eventName,
+          routingKey: event.routingKey,
+        });
       } catch (error) {
-        console.error(`Failed outbox event ${event.id}`, error);
+        logger.error("Failed to publish outbox event", {
+          eventId: event.id,
+          eventName: event.eventName,
+          routingKey: event.routingKey,
+          error: error.message,
+          stack: error.stack,
+        });
 
-        /*
-          DO NOT mark processed
-
-          worker retries later
-        */
+        // Leave unprocessed so the job retries later.
       }
     }
   }

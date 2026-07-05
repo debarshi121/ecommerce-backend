@@ -1,40 +1,49 @@
 // src/infrastructure/rabbitmq/EventConsumer.js
+const logger = require("../logging/Logger");
 
 class EventConsumer {
   constructor(rabbitClient) {
     this.channel = rabbitClient.getChannel();
-
-    this.exchange = "domain-events";
   }
 
-  async consume(queue, routingKey, handler) {
+  async consume({ exchange, queue, routingKey, handler, prefetch = 10 }) {
     await this.channel.assertQueue(queue, {
       durable: true,
     });
 
-    await this.channel.bindQueue(queue, this.exchange, routingKey);
+    await this.channel.bindQueue(queue, exchange, routingKey);
 
-    await this.channel.prefetch(10);
+    await this.channel.prefetch(prefetch);
 
-    this.channel.consume(
+    this.channel.consume(queue, async (message) => {
+      if (!message) {
+        return;
+      }
+
+      try {
+        const event = JSON.parse(message.content.toString());
+
+        await handler(event);
+
+        this.channel.ack(message);
+      } catch (error) {
+        logger.error("RabbitMQ consumer failed", {
+          exchange,
+          queue,
+          routingKey,
+          error: error.message,
+          stack: error.stack,
+        });
+
+        this.channel.nack(message, false, false);
+      }
+    });
+
+    logger.info("RabbitMQ consumer started", {
+      exchange,
       queue,
-
-      async (message) => {
-        if (!message) {
-          return;
-        }
-
-        try {
-          const event = JSON.parse(message.content.toString());
-
-          await handler(event);
-
-          this.channel.ack(message);
-        } catch (error) {
-          this.channel.nack(message, false, false);
-        }
-      },
-    );
+      routingKey,
+    });
   }
 }
 

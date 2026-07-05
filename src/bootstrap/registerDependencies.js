@@ -50,10 +50,6 @@ const OtpService = require("../modules/identity/services/OtpService");
 
 const AuthService = require("../modules/identity/services/AuthService");
 
-const PasswordAuthenticationProvider = require("../modules/identity/providers/PasswordAuthenticationProvider");
-const OtpAuthenticationProvider = require("../modules/identity/providers/OtpAuthenticationProvider");
-const AuthenticationProviderFactory = require("../modules/identity/providers/AuthenticationProviderFactory");
-
 const RoleService = require("../modules/identity/services/RoleService");
 
 const PermissionService = require("../modules/identity/services/PermissionService");
@@ -61,6 +57,30 @@ const PermissionService = require("../modules/identity/services/PermissionServic
 const OutboxService = require("../shared/services/OutboxService");
 
 const EventBusService = require("../shared/services/EventBusService");
+
+const EmailService = require("../modules/notification/services/EmailService");
+
+const NotificationService = require("../modules/notification/services/NotificationService");
+
+/*
+|--------------------------------------------------------------------------
+| Providers
+|--------------------------------------------------------------------------
+*/
+const PasswordAuthenticationProvider = require("../modules/identity/providers/PasswordAuthenticationProvider");
+
+const OtpAuthenticationProvider = require("../modules/identity/providers/OtpAuthenticationProvider");
+
+const AuthenticationProviderFactory = require("../modules/identity/providers/AuthenticationProviderFactory");
+
+const ConsoleEmailProvider = require("../modules/notification/providers/ConsoleEmailProvider");
+
+/*
+|--------------------------------------------------------------------------
+| Consumers
+|--------------------------------------------------------------------------
+*/
+const UserRegisteredConsumer = require("../modules/notification/consumers/UserRegisteredConsumer");
 
 /*
 |--------------------------------------------------------------------------
@@ -197,6 +217,20 @@ function registerDependencies() {
     authenticationProviderFactory,
   });
 
+  const emailProvider = new ConsoleEmailProvider();
+
+  const emailService = new EmailService({
+    emailProvider,
+  });
+
+  const notificationService = new NotificationService({
+    emailService,
+  });
+
+  const userRegisteredConsumer = new UserRegisteredConsumer({
+    notificationService,
+  });
+
   /*
   --------------------------------------------------------------------------
   Controller instances
@@ -274,6 +308,9 @@ function registerDependencies() {
     otpService,
     roleService,
     permissionService,
+    notificationService,
+
+    userRegisteredConsumer,
 
     eventPublisher,
 

@@ -1,36 +1,29 @@
-// src/infrastructure/rabbitmq/EventPublisher.js
+const ExchangeNames = require("../../shared/constants/ExchangeNames");
 
 class EventPublisher {
   constructor(rabbitClient) {
     this.channel = rabbitClient.getChannel();
-
-    this.exchange = "domain-events";
   }
 
-  publish(eventName, payload) {
+  async publish({ exchange, routingKey, eventName, payload }) {
     const message = {
       eventName,
-
       timestamp: new Date().toISOString(),
-
-      data: payload,
+      payload,
     };
 
     this.channel.publish(
-      this.exchange,
-
-      eventName,
-
+      exchange,
+      routingKey,
       Buffer.from(JSON.stringify(message)),
-
       {
         persistent: true,
       },
     );
   }
 
-  async ensureExchange() {
-    await this.channel.assertExchange(this.exchange, "topic", {
+  async ensureExchange(exchange = ExchangeNames.IDENTITY) {
+    await this.channel.assertExchange(exchange, "topic", {
       durable: true,
     });
   }

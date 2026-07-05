@@ -6,13 +6,12 @@ class EventBusService {
   }
 
   async publish(event) {
-    console.log(`Publishing event ${event.eventName}`);
-
-    await this.eventPublisher.publish(
-      event.exchange,
-      event.routingKey,
-      event.payload,
-    );
+    await this.eventPublisher.publish({
+      exchange: event.exchange,
+      routingKey: event.routingKey,
+      eventName: event.eventName,
+      payload: event.payload,
+    });
   }
 }
 

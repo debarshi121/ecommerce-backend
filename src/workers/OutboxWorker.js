@@ -2,17 +2,17 @@
 
 const QueueWorker = require("../infrastructure/bullmq/QueueWorker");
 
-const { OUTBOX_QUEUE } = require("../shared/constants/QueueNames");
+const { OUTBOX_QUEUE } = require("../shared/constants/BullQueues");
 
 class OutboxWorker {
   constructor({ publishOutboxJob }) {
-    this.worker = new QueueWorker(OUTBOX_QUEUE, async () => {
-      await publishOutboxJob.handle();
+    this.queueWorker = new QueueWorker(OUTBOX_QUEUE, async (job) => {
+      await publishOutboxJob.handle(job);
     });
   }
 
   async close() {
-    await this.worker.close();
+    await this.queueWorker.close();
   }
 }
 

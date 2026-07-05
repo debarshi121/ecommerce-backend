@@ -3,7 +3,7 @@
 const JobProducer = require("../infrastructure/bullmq/JobProducer");
 const logger = require("../infrastructure/logging/Logger");
 
-const { OUTBOX_QUEUE } = require("../shared/constants/QueueNames");
+const { OUTBOX_QUEUE } = require("../shared/constants/BullQueues");
 
 async function registerJobs() {
   const producer = new JobProducer(OUTBOX_QUEUE);

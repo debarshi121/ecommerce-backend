@@ -1,8 +1,15 @@
 class EmailService {
-  async sendOtp(email, otp) {
-    console.log(`Sending OTP ${otp} to ${email}`);
+  constructor({ emailProvider }) {
+    this.emailProvider = emailProvider;
+  }
 
-    return true;
+  async send({ to, subject, html, text }) {
+    await this.emailProvider.send({
+      to,
+      subject,
+      html,
+      text,
+    });
   }
 }
 
