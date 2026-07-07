@@ -12,7 +12,7 @@ class OutboxRepository {
       INSERT INTO outbox_events (
         id,
         "eventName",
-        exchange,
+        module,
         "routingKey",
         payload
       )
@@ -27,7 +27,7 @@ class OutboxRepository {
 
       event.eventName,
 
-      event.exchange,
+      event.module,
 
       event.routingKey,
 

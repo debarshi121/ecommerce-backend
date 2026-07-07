@@ -10,7 +10,7 @@ class OutboxService {
       {
         eventName: event.eventName,
 
-        exchange: event.exchange,
+        module: event.module,
 
         routingKey: event.routingKey,
 

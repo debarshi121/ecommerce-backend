@@ -13,7 +13,9 @@ const CacheService = require("../infrastructure/redis/CacheService");
 
 const PostgresTransactionManager = require("../infrastructure/postgres/PostgresTransactionManager");
 
-const EventPublisher = require("../infrastructure/rabbitmq/EventPublisher");
+// CHANGED
+const EventPublisher = require("../infrastructure/eventbus/EventPublisher");
+
 const OtpStore = require("../modules/identity/stores/OtpStore");
 
 /*
@@ -23,13 +25,9 @@ const OtpStore = require("../modules/identity/stores/OtpStore");
 */
 
 const UserRepository = require("../modules/identity/repositories/UserRepository");
-
 const SessionRepository = require("../modules/identity/repositories/SessionRepository");
-
 const RoleRepository = require("../modules/identity/repositories/RoleRepository");
-
 const PermissionRepository = require("../modules/identity/repositories/PermissionRepository");
-
 const OutboxRepository = require("../shared/repositories/OutboxRepository");
 
 /*
@@ -39,27 +37,16 @@ const OutboxRepository = require("../shared/repositories/OutboxRepository");
 */
 
 const CredentialService = require("../modules/identity/services/CredentialService");
-
 const TokenService = require("../modules/identity/services/TokenService");
-
 const TokenBlacklistService = require("../modules/identity/services/TokenBlacklistService");
-
 const SessionService = require("../modules/identity/services/SessionService");
-
 const OtpService = require("../modules/identity/services/OtpService");
-
 const AuthService = require("../modules/identity/services/AuthService");
-
 const RoleService = require("../modules/identity/services/RoleService");
-
 const PermissionService = require("../modules/identity/services/PermissionService");
-
 const OutboxService = require("../shared/services/OutboxService");
-
 const EventBusService = require("../shared/services/EventBusService");
-
 const EmailService = require("../modules/notification/services/EmailService");
-
 const NotificationService = require("../modules/notification/services/NotificationService");
 
 /*
@@ -67,12 +54,10 @@ const NotificationService = require("../modules/notification/services/Notificati
 | Providers
 |--------------------------------------------------------------------------
 */
+
 const PasswordAuthenticationProvider = require("../modules/identity/providers/PasswordAuthenticationProvider");
-
 const OtpAuthenticationProvider = require("../modules/identity/providers/OtpAuthenticationProvider");
-
 const AuthenticationProviderFactory = require("../modules/identity/providers/AuthenticationProviderFactory");
-
 const ConsoleEmailProvider = require("../modules/notification/providers/ConsoleEmailProvider");
 
 /*
@@ -80,6 +65,7 @@ const ConsoleEmailProvider = require("../modules/notification/providers/ConsoleE
 | Consumers
 |--------------------------------------------------------------------------
 */
+
 const UserRegisteredConsumer = require("../modules/notification/consumers/UserRegisteredConsumer");
 
 /*
@@ -89,13 +75,9 @@ const UserRegisteredConsumer = require("../modules/notification/consumers/UserRe
 */
 
 const AuthController = require("../modules/identity/controllers/AuthController");
-
 const OtpController = require("../modules/identity/controllers/OtpController");
-
 const SessionController = require("../modules/identity/controllers/SessionController");
-
 const RoleController = require("../modules/identity/controllers/RoleController");
-
 const PermissionController = require("../modules/identity/controllers/PermissionController");
 
 /*
@@ -105,7 +87,6 @@ const PermissionController = require("../modules/identity/controllers/Permission
 */
 
 const JwtMiddleware = require("../modules/identity/middleware/JwtMiddleware");
-
 const PermissionMiddleware = require("../modules/identity/middleware/PermissionMiddleware");
 
 /*
@@ -119,9 +100,9 @@ const OutboxWorker = require("../workers/OutboxWorker");
 
 function registerDependencies() {
   /*
-  --------------------------------------------------------------------------
-  Infrastructure instances
-  --------------------------------------------------------------------------
+  |--------------------------------------------------------------------------
+  | Infrastructure
+  |--------------------------------------------------------------------------
   */
 
   const db = PostgresClient.getInstance();
@@ -139,9 +120,9 @@ function registerDependencies() {
   const eventPublisher = new EventPublisher(rabbit);
 
   /*
-  --------------------------------------------------------------------------
-  Repository instances
-  --------------------------------------------------------------------------
+  |--------------------------------------------------------------------------
+  | Repositories
+  |--------------------------------------------------------------------------
   */
 
   const userRepository = new UserRepository(db);
@@ -155,9 +136,9 @@ function registerDependencies() {
   const outboxRepository = new OutboxRepository(db);
 
   /*
-  --------------------------------------------------------------------------
-  Service instances
-  --------------------------------------------------------------------------
+  |--------------------------------------------------------------------------
+  | Services
+  |--------------------------------------------------------------------------
   */
 
   const credentialService = new CredentialService(userRepository);
@@ -227,14 +208,20 @@ function registerDependencies() {
     emailService,
   });
 
+  /*
+  |--------------------------------------------------------------------------
+  | Consumers
+  |--------------------------------------------------------------------------
+  */
+
   const userRegisteredConsumer = new UserRegisteredConsumer({
     notificationService,
   });
 
   /*
-  --------------------------------------------------------------------------
-  Controller instances
-  --------------------------------------------------------------------------
+  |--------------------------------------------------------------------------
+  | Controllers
+  |--------------------------------------------------------------------------
   */
 
   const authController = new AuthController(authService);
@@ -248,9 +235,9 @@ function registerDependencies() {
   const permissionController = new PermissionController(permissionService);
 
   /*
-  --------------------------------------------------------------------------
-  Middleware instances
-  --------------------------------------------------------------------------
+  |--------------------------------------------------------------------------
+  | Middleware
+  |--------------------------------------------------------------------------
   */
 
   const jwtMiddleware = new JwtMiddleware({
@@ -264,9 +251,9 @@ function registerDependencies() {
   });
 
   /*
-  --------------------------------------------------------------------------
-  Job instances
-  --------------------------------------------------------------------------
+  |--------------------------------------------------------------------------
+  | Jobs
+  |--------------------------------------------------------------------------
   */
 
   const publishOutboxJob = new PublishOutboxJob({
@@ -275,34 +262,28 @@ function registerDependencies() {
   });
 
   /*
-  --------------------------------------------------------------------------
-  Worker instances
-  --------------------------------------------------------------------------
+  |--------------------------------------------------------------------------
+  | Workers
+  |--------------------------------------------------------------------------
   */
 
   const outboxWorker = new OutboxWorker({
     publishOutboxJob,
   });
 
-  /*
-  --------------------------------------------------------------------------
-  Export dependency container
-  --------------------------------------------------------------------------
-  */
-
   return {
-    // controllers
+    // Controllers
     authController,
     otpController,
     sessionController,
     roleController,
     permissionController,
 
-    // middleware
+    // Middleware
     jwtMiddleware,
     permissionMiddleware,
 
-    // services (optional export)
+    // Services
     authService,
     sessionService,
     otpService,
@@ -310,14 +291,16 @@ function registerDependencies() {
     permissionService,
     notificationService,
 
+    // Consumers
     userRegisteredConsumer,
 
+    // Event Bus
     eventPublisher,
 
-    // jobs
+    // Jobs
     publishOutboxJob,
 
-    // workers
+    // Workers
     outboxWorker,
   };
 }

@@ -1,11 +1,15 @@
-const ExchangeNames = require("../../shared/constants/ExchangeNames");
+// src/infrastructure/eventbus/EventPublisher.js
+
+const MessagingModule = require("./MessagingModule");
 
 class EventPublisher {
   constructor(rabbitClient) {
     this.channel = rabbitClient.getChannel();
   }
 
-  async publish({ exchange, routingKey, eventName, payload }) {
+  async publish({ module, eventName, routingKey, payload }) {
+    const messagingModule = new MessagingModule(module);
+
     const message = {
       eventName,
       timestamp: new Date().toISOString(),
@@ -13,19 +17,13 @@ class EventPublisher {
     };
 
     this.channel.publish(
-      exchange,
+      messagingModule.exchange,
       routingKey,
       Buffer.from(JSON.stringify(message)),
       {
         persistent: true,
       },
     );
-  }
-
-  async ensureExchange(exchange = ExchangeNames.IDENTITY) {
-    await this.channel.assertExchange(exchange, "topic", {
-      durable: true,
-    });
   }
 }
 

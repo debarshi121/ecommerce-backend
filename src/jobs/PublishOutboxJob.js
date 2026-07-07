@@ -13,7 +13,7 @@ class PublishOutboxJob {
       try {
         await this.eventBusService.publish({
           eventName: event.eventName,
-          exchange: event.exchange,
+          module: event.module,
           routingKey: event.routingKey,
           payload: event.payload,
         });

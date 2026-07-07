@@ -14,7 +14,7 @@ const logger = require("./infrastructure/logging/Logger");
 
 const registerDependencies = require("./bootstrap/registerDependencies");
 const registerWorkers = require("./bootstrap/registerWorkers");
-const registerEventConsumers = require("./bootstrap/registerEventConsumers");
+const registerMessaging = require("./bootstrap/registerMessaging");
 const registerJobs = require("./bootstrap/registerJobs");
 const registerGracefulShutdown = require("./bootstrap/registerGracefulShutdown");
 
@@ -47,11 +47,12 @@ async function bootstrap() {
 
     /*
      ----------------------------------
-     Assert RabbitMQ exchanges
+     Set up event bus topology and start consumers
+     (must happen before workers/jobs, which may publish)
      ----------------------------------
     */
 
-    await dependencies.eventPublisher.ensureExchange();
+    await registerMessaging(dependencies);
 
     /*
      ----------------------------------
@@ -80,7 +81,7 @@ async function bootstrap() {
 
     /*
      ----------------------------------
-     Start background workers first
+     Start background workers
      ----------------------------------
     */
 
@@ -93,14 +94,6 @@ async function bootstrap() {
     */
 
     await registerJobs();
-
-    /*
-     ----------------------------------
-     Start event consumers
-     ----------------------------------
-    */
-
-    await registerEventConsumers(dependencies);
 
     /*
      ----------------------------------
@@ -127,7 +120,10 @@ async function bootstrap() {
       workers,
     });
   } catch (error) {
-    logger.error("Bootstrap failed", error);
+    logger.error("Bootstrap failed", {
+      error: error.message,
+      stack: error.stack,
+    });
     await logger.flush();
     process.exit(1);
   }

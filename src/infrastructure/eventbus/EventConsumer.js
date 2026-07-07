@@ -1,18 +1,14 @@
-// src/infrastructure/rabbitmq/EventConsumer.js
+// src/infrastructure/eventbus/EventConsumer.js
+
 const logger = require("../logging/Logger");
 
 class EventConsumer {
-  constructor(rabbitClient) {
+  constructor(rabbitClient, retryStrategy) {
     this.channel = rabbitClient.getChannel();
+    this.retryStrategy = retryStrategy;
   }
 
-  async consume({ exchange, queue, routingKey, handler, prefetch = 10 }) {
-    await this.channel.assertQueue(queue, {
-      durable: true,
-    });
-
-    await this.channel.bindQueue(queue, exchange, routingKey);
-
+  async consume({ queue, handler, module, routingKey, prefetch = 10, maxRetries }) {
     await this.channel.prefetch(prefetch);
 
     this.channel.consume(queue, async (message) => {
@@ -27,22 +23,26 @@ class EventConsumer {
 
         this.channel.ack(message);
       } catch (error) {
-        logger.error("RabbitMQ consumer failed", {
-          exchange,
+        logger.error("Event handler failed", {
           queue,
           routingKey,
           error: error.message,
           stack: error.stack,
         });
 
-        this.channel.nack(message, false, false);
+        await this.retryStrategy.handle({
+          message,
+          error,
+          module,
+          routingKey,
+          maxRetries,
+        });
       }
     });
 
-    logger.info("RabbitMQ consumer started", {
-      exchange,
+    logger.info("Consumer started", {
       queue,
-      routingKey,
+      prefetch,
     });
   }
 }
