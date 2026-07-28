@@ -7,10 +7,17 @@ class EventPublisher {
     this.channel = rabbitClient.getChannel();
   }
 
-  async publish({ module, eventName, routingKey, payload }) {
+  async publish({ eventId, module, eventName, routingKey, payload }) {
+    if (!eventId) {
+      throw new Error(
+        "EventPublisher.publish requires a stable eventId (pass the Outbox row id) so consumers can deduplicate redeliveries",
+      );
+    }
+
     const messagingModule = new MessagingModule(module);
 
     const message = {
+      eventId,
       eventName,
       timestamp: new Date().toISOString(),
       payload,

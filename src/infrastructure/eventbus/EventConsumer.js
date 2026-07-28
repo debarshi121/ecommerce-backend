@@ -3,9 +3,10 @@
 const logger = require("../logging/Logger");
 
 class EventConsumer {
-  constructor(rabbitClient, retryStrategy) {
+  constructor(rabbitClient, retryStrategy, inboxService) {
     this.channel = rabbitClient.getChannel();
     this.retryStrategy = retryStrategy;
+    this.inboxService = inboxService;
   }
 
   async consume({ queue, handler, module, routingKey, prefetch = 10, maxRetries }) {
@@ -16,27 +17,71 @@ class EventConsumer {
         return;
       }
 
+      let event;
+
       try {
-        const event = JSON.parse(message.content.toString());
-
-        await handler(event);
-
-        this.channel.ack(message);
+        event = JSON.parse(message.content.toString());
       } catch (error) {
-        logger.error("Event handler failed", {
+        logger.error("Failed to parse event payload, routing to dead letter queue", {
           queue,
           routingKey,
           error: error.message,
           stack: error.stack,
         });
 
-        await this.retryStrategy.handle({
+        this.channel.nack(message, false, false);
+
+        return;
+      }
+
+      try {
+        const { duplicate } = await this.inboxService.processEvent({
+          event,
+          module: module.name,
+          queue,
+          handler,
+        });
+
+        if (duplicate) {
+          logger.warn("Duplicate event skipped by inbox", {
+            queue,
+            routingKey,
+            eventId: event.eventId,
+            eventName: event.eventName,
+          });
+        }
+
+        this.channel.ack(message);
+      } catch (error) {
+        logger.error("Event handler failed", {
+          queue,
+          routingKey,
+          eventId: event.eventId,
+          eventName: event.eventName,
+          error: error.message,
+          stack: error.stack,
+        });
+
+        const { deadLettered } = await this.retryStrategy.handle({
           message,
           error,
           module,
           routingKey,
           maxRetries,
         });
+
+        if (deadLettered) {
+          await this.inboxService.fail(
+            {
+              eventId: event.eventId,
+              eventName: event.eventName,
+              module: module.name,
+              queue,
+              payload: event.payload,
+            },
+            error,
+          );
+        }
       }
     });
 

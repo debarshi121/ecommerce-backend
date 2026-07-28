@@ -12,6 +12,7 @@ class PublishOutboxJob {
     for (const event of pendingEvents) {
       try {
         await this.eventBusService.publish({
+          eventId: event.id,
           eventName: event.eventName,
           module: event.module,
           routingKey: event.routingKey,

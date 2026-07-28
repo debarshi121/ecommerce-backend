@@ -35,7 +35,7 @@ class RetryStrategy {
 
       this.channel.ack(message);
 
-      return;
+      return { deadLettered: false, retryCount: retryCount + 1 };
     }
 
     logger.error("Retry limit exceeded, routing to dead letter queue", {
@@ -47,6 +47,8 @@ class RetryStrategy {
     });
 
     this.channel.nack(message, false, false);
+
+    return { deadLettered: true, retryCount };
   }
 }
 

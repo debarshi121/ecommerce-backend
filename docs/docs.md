@@ -92,6 +92,79 @@ welcome email log line immediately, that's expected, not a bug.
 
 ---
 
+## 2a. The other half of the same problem: the Inbox Pattern
+
+Outbox fixes "did we definitely *send* the event." It does **not** fix the mirror-image
+problem on the receiving end:
+
+> What if RabbitMQ redelivers the exact same message twice? (Consumer crashed after
+> processing but before acking, network blip drops the ack, the outbox relay itself
+> republished the same row because `markProcessed` failed after a successful publish,
+> etc.) By design, RabbitMQ only guarantees **at-least-once** delivery — "one or more
+> times, never zero" — so every consumer *will* see duplicates eventually. Without
+> something to catch that, `UserRegisteredConsumer` would send a second welcome email; a
+> payment consumer would charge a card twice.
+
+The fix is the mirror image of the Outbox: a plain Postgres table, `inbox_events`
+([migration](src/database/migrations/004_inbox_events.sql)), that remembers *which
+events this consumer has already fully processed*, keyed on the event's own id plus the
+consuming queue. Unlike Outbox, this isn't module-specific — every consumer registered
+through `EventConsumer` gets this for free, automatically, with no per-module code.
+
+```
+ EventConsumer receives a message
+        │
+        ▼
+ InboxService.processEvent()
+        │
+        ├─ already PROCESSED for this (eventId, queue)? ──▶ skip handler, ack immediately
+        │
+        └─ not yet processed ──▶ BEGIN (one Postgres transaction)
+                                    ├─ INSERT inbox_events (status=PROCESSING)
+                                    ├─ run the handler  (same transaction/client)
+                                    ├─ UPDATE inbox_events SET status=PROCESSED
+                                  COMMIT
+                                    │
+                                    ▼
+                                  ack the message
+```
+
+The key design decision: **the Inbox insert, the handler's own business-logic writes,
+and marking the Inbox row processed all happen inside the *same* database transaction**
+(via the existing
+[`PostgresTransactionManager`](src/infrastructure/postgres/PostgresTransactionManager.js)
+— nothing new was built for this, it's the identical `runInTransaction`/`execute` used
+by `AuthService`). That means one of two things always happens, never a third:
+
+- Handler succeeds → Inbox row and the handler's own table writes commit together,
+  atomically → message acked. A redelivery of the same event is now recognized and
+  skipped forever.
+- Handler throws → the whole transaction rolls back, **including the Inbox insert** →
+  as far as any other query is concerned, this attempt never happened → the message is
+  *not* acked, and `RetryStrategy` retries it exactly as before. It is structurally
+  impossible to end up with "Inbox says processed, but the business logic never ran."
+
+Duplicate detection itself doesn't rely on an app-level "check then insert" (which would
+have a race window under concurrent redelivery). It's a single
+`INSERT ... ON CONFLICT ("eventId", queue) ... RETURNING *` — Postgres's own unique
+index and row-locking make the check-and-mark atomic, even if the exact same message
+arrives on two connections at once.
+
+Why key on `(eventId, queue)` and not just `eventId`? Because the same event can be
+fanned out to more than one consumer queue (e.g. a future `OrderPlaced` event consumed
+independently by both Inventory and Payment). Keying on `eventId` alone would mean
+whichever consumer processed it first marks it "done," and every other consumer would
+wrongly treat it as a duplicate and skip its own handler. Scoping the uniqueness to the
+specific queue gives every consumer its own independent, correct dedup ledger inside one
+shared table.
+
+See
+[`InboxRepository.js`](src/shared/repositories/InboxRepository.js) and
+[`InboxService.js`](src/shared/services/InboxService.js) for the implementation, and §6a
+below for how it plugs into `EventConsumer`.
+
+---
+
 ## 3. Walking through the real example, file by file
 
 Flow: **user calls `POST /auth/register` → Notification module logs a "welcome email"**.
@@ -121,9 +194,15 @@ automatically, so producers never hardcode RabbitMQ-specific strings.
 
 `outboxService.addEvent()` ([`src/shared/services/OutboxService.js`](src/shared/services/OutboxService.js))
 just inserts a row into Postgres via
-[`src/shared/repositories/OutboxRepository.js`](src/shared/repositories/OutboxRepository.js).
-Nothing about RabbitMQ happens yet. The HTTP request returns to the user right after
-this — registration is not slowed down at all.
+[`src/shared/repositories/OutboxRepository.js`](src/shared/repositories/OutboxRepository.js),
+generating a fresh `id` (a UUID) for that row. Nothing about RabbitMQ happens yet. The
+HTTP request returns to the user right after this — registration is not slowed down at
+all.
+
+That generated `id` matters beyond just being a primary key: it becomes the event's
+`eventId` once published (see Step 2), and it's generated exactly once, here, and never
+regenerated — which is precisely what lets the Inbox Pattern (§2a) recognize a
+republished outbox row as the *same* event rather than a new one.
 
 ### Step 2 — Relay: the outbox row is forwarded to RabbitMQ
 
@@ -142,13 +221,23 @@ calls [`src/jobs/PublishOutboxJob.js`](src/jobs/PublishOutboxJob.js) `handle()`:
 ```js
 const pendingEvents = await this.outboxService.getUnprocessedEvents(20);
 for (const event of pendingEvents) {
-  await this.eventBusService.publish(event); // -> RabbitMQ
+  await this.eventBusService.publish({
+    eventId: event.id, // <- the outbox row's own id, carried through unchanged
+    eventName: event.eventName,
+    module: event.module,
+    routingKey: event.routingKey,
+    payload: event.payload,
+  }); // -> RabbitMQ
   await this.outboxService.markProcessed(event.id);
 }
 ```
 
 If `eventBusService.publish()` throws (RabbitMQ down, etc.), the row is simply left
-`processed = false` and gets retried on the *next* 5-second tick. Nothing is lost.
+`processed = false` and gets retried on the *next* 5-second tick — which means the
+*same* outbox row, with the *same* `id`, gets published again. Nothing is lost, but this
+is also exactly the redelivery case the Inbox Pattern (§2a) exists to catch on the
+consumer side: because `eventId` is that same unchanged `id`, the second publish
+attempt is recognized as the same logical event, not a new one.
 
 `eventBusService.publish()` ([`src/shared/services/EventBusService.js`](src/shared/services/EventBusService.js))
 delegates to
@@ -158,6 +247,13 @@ which is the only file in the whole project that actually talks to the RabbitMQ
 
 ```js
 const messagingModule = new MessagingModule(module); // module = "identity"
+
+const message = {
+  eventId,    // the outbox row's id — required; publish() throws without one
+  eventName,
+  timestamp: new Date().toISOString(),
+  payload,
+};
 
 this.channel.publish(
   messagingModule.exchange,   // "identity.exchange" — derived, never hardcoded
@@ -169,6 +265,8 @@ this.channel.publish(
 
 `routingKey = "user.registered"`. `persistent: true` tells RabbitMQ to write the
 message to disk, so it survives a RabbitMQ restart while it's waiting for a consumer.
+`eventId` is a required field, not an afterthought — see §2a for why publishing without
+a stable, unchanging id would silently break duplicate detection on the consumer side.
 
 ### Step 3 — Broker: RabbitMQ routes the message
 
@@ -246,20 +344,43 @@ swappable "provider" (see [`EmailProvider.js`](src/modules/notification/provider
 so plugging in real SendGrid/SES/etc. later means writing one new class, not touching
 any of the event plumbing above.
 
-### Step 6 — Acknowledgement, retry and dead-lettering
+### Step 6 — Idempotency, acknowledgement, retry and dead-lettering
 
-Back in `EventConsumer.js`, once your `handler` resolves without throwing:
+Before `handler` even runs, `EventConsumer.js` routes every message through the Inbox
+Pattern from §2a:
 
 ```js
+const { duplicate } = await this.inboxService.processEvent({
+  event,
+  module: module.name,
+  queue,
+  handler,
+});
+
+if (duplicate) {
+  // handler was never called — this exact (eventId, queue) was already processed
+}
+
 this.channel.ack(message);
 ```
 
-`ack` tells RabbitMQ "delivered successfully, you can delete this message from the
-queue forever." If the handler throws instead, `EventConsumer` hands the message to
+`processEvent()` is what actually calls your `handler`, from *inside* one Postgres
+transaction shared with an `inbox_events` insert (§2a) — so from `EventConsumer`'s point
+of view, "run the handler" and "check it's not a duplicate" are one inseparable step.
+Only once that resolves (whether it ran the handler or recognized a duplicate) does
+`EventConsumer` `ack` the message. `ack` tells RabbitMQ "delivered successfully, you can
+delete this message from the queue forever."
+
+If the handler throws instead (a *genuine* failure, not a duplicate — `processEvent`
+never throws for a duplicate), `EventConsumer` hands the message to
 [`RetryStrategy`](src/infrastructure/eventbus/RetryStrategy.js) rather than dropping it:
 
 ```js
-await this.retryStrategy.handle({ message, error, module, routingKey, maxRetries });
+const { deadLettered } = await this.retryStrategy.handle({ message, error, module, routingKey, maxRetries });
+
+if (deadLettered) {
+  await this.inboxService.fail({ eventId, eventName, module: module.name, queue, payload }, error);
+}
 ```
 
 `RetryStrategy` reads an `x-retry-count` header off the message:
@@ -271,15 +392,21 @@ await this.retryStrategy.handle({ message, error, module, routingKey, maxRetries
   `identity.exchange` with its *original* routing key — which lands it right back in
   `notification.user.registered` for another attempt. This is a delay/backoff
   mechanism built entirely out of RabbitMQ TTL + dead-lettering, no timers or polling
-  in application code.
+  in application code. `handle()` returns `{ deadLettered: false }` for this branch.
 - **At or above `maxRetries`**: nacks the message without requeueing
-  (`channel.nack(message, false, false)`). Because the original consumer queue was
-  declared with `x-dead-letter-exchange`/`x-dead-letter-routing-key` pointing at the
-  module's dead-letter exchange, RabbitMQ automatically routes it to
+  (`channel.nack(message, false, false)`), returning `{ deadLettered: true }`. Because
+  the original consumer queue was declared with
+  `x-dead-letter-exchange`/`x-dead-letter-routing-key` pointing at the module's
+  dead-letter exchange, RabbitMQ automatically routes it to
   `identity.dead-letter.queue` instead of discarding it — so failed messages are always
-  inspectable, never silently lost.
+  inspectable, never silently lost. `EventConsumer` uses that `deadLettered` flag to
+  call `inboxService.fail()`, which writes a `FAILED` row into `inbox_events` (with the
+  error message) purely as an audit trail — this write happens *outside* the business
+  transaction (which already rolled back), on its own connection, and never blocks the
+  message from reaching the DLQ.
 
-See §6a for how this retry/DLQ infrastructure is built generically for *any* module.
+See §6a for how this retry/DLQ/Inbox infrastructure is built generically for *any*
+module.
 
 ### The whole trip, end to end
 
@@ -313,25 +440,37 @@ Queue "notification.user.registered"  (Notification's private mailbox)
         ▼
 EventConsumer's channel.consume() fires
         │
-        ├──▶ success ──▶ channel.ack(message)   // done, remove from queue
-        │
-        └──▶ throws  ──▶ RetryStrategy.handle()
-                            │
-                            ├─ retryCount < maxRetries ─▶ republish to
-                            │    "identity.retry.exchange" ─▶ "identity.retry.queue"
-                            │    (parked for `retryDelay` ms via x-message-ttl) ─▶
-                            │    TTL expires ─▶ dead-lettered back onto
-                            │    "identity.exchange" with the original routing key
-                            │    ─▶ redelivered to "notification.user.registered"
-                            │
-                            └─ retryCount >= maxRetries ─▶ nack(requeue=false) ─▶
-                                 "identity.dead-letter.queue" (parked for inspection)
-        │
-        ▼  (happy path)
-UserRegisteredConsumer.handle(payload)
-        │
         ▼
-NotificationService.sendWelcomeEmail()  ──▶  EmailService  ──▶  ConsoleEmailProvider
+InboxService.processEvent({event, module, queue, handler})
+        │
+        ├──▶ already PROCESSED for (eventId, queue)? ─▶ duplicate: true
+        │        (handler NEVER runs) ─▶ channel.ack(message)   // done, drop it
+        │
+        └──▶ not yet processed ─▶ BEGIN (one Postgres transaction)
+                 ├─ INSERT inbox_events (status=PROCESSING)
+                 ├─ UserRegisteredConsumer.handle(payload)   // <- the actual handler
+                 │       │
+                 │       ▼
+                 │  NotificationService.sendWelcomeEmail() ──▶ EmailService ──▶ ConsoleEmailProvider
+                 │
+                 ├─ success ─▶ UPDATE inbox_events SET status=PROCESSED ─▶ COMMIT
+                 │                 ─▶ channel.ack(message)   // done, remove from queue
+                 │
+                 └─ throws  ─▶ ROLLBACK (inbox insert undone too) ─▶ RetryStrategy.handle()
+                                   │
+                                   ├─ retryCount < maxRetries ─▶ republish to
+                                   │    "identity.retry.exchange" ─▶ "identity.retry.queue"
+                                   │    (parked for `retryDelay` ms via x-message-ttl) ─▶
+                                   │    TTL expires ─▶ dead-lettered back onto
+                                   │    "identity.exchange" with the original routing key
+                                   │    ─▶ redelivered to "notification.user.registered"
+                                   │    { deadLettered: false }
+                                   │
+                                   └─ retryCount >= maxRetries ─▶ nack(requeue=false) ─▶
+                                        "identity.dead-letter.queue" (parked for inspection)
+                                        { deadLettered: true } ─▶ inboxService.fail()
+                                        ─▶ INSERT/UPSERT inbox_events (status=FAILED, lastError)
+                                        (audit trail only — own connection, not the rolled-back tx)
 ```
 
 ---
@@ -416,14 +555,20 @@ looking for "why doesn't the OTP email show up in the console":
    method calls `eventPublisher.publish("domain-events", "auth.otp.required", {...})`
    **directly**, skipping the outbox table entirely, and calling `.publish()` with
    three positional arguments where `EventPublisher.publish()` expects **one object**
-   argument (`{ module, routingKey, eventName, payload }`) — so this call is
-   effectively broken today and won't successfully deliver a real message.
+   argument (`{ eventId, module, routingKey, eventName, payload }`) — so this call is
+   effectively broken today and won't successfully deliver a real message (it now also
+   fails the required-`eventId` check added for the Inbox Pattern in §2a, on top of the
+   pre-existing argument-shape bug).
    Meanwhile, there's a *second*, unused, correctly-outbox-based implementation sitting
    right next to it: [`AuthService.requestOtp()`](src/modules/identity/services/AuthService.js#L207)
    does it the "right" way (matching the pattern in §3) but no route calls it.
    → If you want OTP emails to actually work, wire the route to `AuthService.requestOtp`
    and finish registering `OtpRequiredConsumer`, then add a `sendOtpNotification` method
-   to `NotificationService` (see §7 below — it doesn't exist yet either).
+   to `NotificationService` (see §7 below — it doesn't exist yet either). Doing it this
+   way also means it automatically gets Inbox deduplication for free, same as
+   `UserRegisteredConsumer` — direct `eventPublisher.publish()` calls bypass both Outbox
+   *and* Inbox guarantees and shouldn't be used for anything that needs reliable,
+   idempotent delivery.
 
 3. **`SmsService`** ([`src/modules/notification/services/SmsService.js`](src/modules/notification/services/SmsService.js))
    is a stub that's never instantiated or wired to anything — a placeholder for future
@@ -446,10 +591,12 @@ Reporting, etc. without touching any infrastructure code — live in
 | [`QueueManager.js`](src/infrastructure/eventbus/QueueManager.js) | Asserts durable queues and binds them to exchanges. No retry/consumer logic. |
 | [`DeadLetterManager.js`](src/infrastructure/eventbus/DeadLetterManager.js) | Builds a module's dead-letter exchange + queue. |
 | [`RetryManager.js`](src/infrastructure/eventbus/RetryManager.js) | Builds a module's retry exchange + queue (TTL-based, `x-message-ttl` + `x-dead-letter-exchange`). One retry queue is shared by every consumer in the module — it's bound with a catch-all `#` routing key and relies on RabbitMQ preserving each message's original routing key on TTL expiry, so retried messages land back in the *correct* consumer queue regardless of which one they came from. |
-| [`RetryStrategy.js`](src/infrastructure/eventbus/RetryStrategy.js) | Pure retry/DLQ policy: reads `x-retry-count` off a failed message, republishes to the retry exchange (incrementing the count) while under the limit, or nacks to the dead-letter queue once the limit is hit. Takes the module and routing key as call arguments — it holds no business-module knowledge itself. |
-| [`EventConsumer.js`](src/infrastructure/eventbus/EventConsumer.js) | Generic consume loop: prefetch, JSON-deserialize, call the handler, ack on success, hand off to `RetryStrategy` on failure. |
-| [`EventPublisher.js`](src/infrastructure/eventbus/EventPublisher.js) | `publish({ module, eventName, routingKey, payload })` — resolves the exchange from `module` via `MessagingModule` and publishes a `{ eventName, timestamp, payload }` envelope, persistent. |
+| [`RetryStrategy.js`](src/infrastructure/eventbus/RetryStrategy.js) | Pure retry/DLQ policy: reads `x-retry-count` off a failed message, republishes to the retry exchange (incrementing the count) while under the limit, or nacks to the dead-letter queue once the limit is hit. Returns `{ deadLettered, retryCount }` so the caller knows which branch was taken. Takes the module and routing key as call arguments — it holds no business-module knowledge itself. |
+| [`EventConsumer.js`](src/infrastructure/eventbus/EventConsumer.js) | Generic consume loop: prefetch, JSON-deserialize (malformed payloads nack straight to the DLQ), delegate to `InboxService.processEvent()` (which itself calls the handler inside one transaction, see below), ack on success or recognized duplicate, hand off to `RetryStrategy` on genuine failure, and call `InboxService.fail()` for audit purposes once `RetryStrategy` reports the message was dead-lettered. |
+| [`EventPublisher.js`](src/infrastructure/eventbus/EventPublisher.js) | `publish({ eventId, module, eventName, routingKey, payload })` — resolves the exchange from `module` via `MessagingModule` and publishes a `{ eventId, eventName, timestamp, payload }` envelope, persistent. `eventId` is required (throws without one) — it must be the *same* id across every republish of the same logical event, which is why callers pass the Outbox row's own `id` rather than generating a new one per publish attempt. |
 | [`ModuleRegistrar.js`](src/infrastructure/eventbus/ModuleRegistrar.js) | The single entry point. `register({ module, retryDelay, consumers })` wires up everything above for one module: exchange, DLQ, retry queue, each consumer's queue + binding + dead-letter args, then starts consuming. No module-specific RabbitMQ code exists anywhere else. |
+| [`InboxRepository.js`](src/shared/repositories/InboxRepository.js) | All `inbox_events` SQL, no business logic: `findByEventId`, `create` (the `INSERT ... ON CONFLICT ("eventId", queue) ... RETURNING *` that makes dedup atomic), `markProcessed`, `markFailed`, `updateStatus`, `deleteOldProcessedEvents`. Lives in `shared/repositories/` — one shared table for the whole monolith, exactly like `OutboxRepository.js`. |
+| [`InboxService.js`](src/shared/services/InboxService.js) | Orchestrates the repository — `isProcessed`, `startProcessing`, `complete`, `fail`, and `processEvent` (the one `EventConsumer` actually calls, which wraps `startProcessing` + the handler + `complete` in a single `PostgresTransactionManager` transaction). Contains no SQL. |
 
 ### How to add a brand-new module (e.g. Payment, Ordering) without touching infrastructure
 
@@ -587,6 +734,17 @@ react to it:
    binding it, wiring its dead-letter arguments, and starting the consumer — you never
    touch `ExchangeManager`/`QueueManager`/`RetryManager`/`EventConsumer` directly.
 
+   Every handler you write here is automatically run through the Inbox Pattern (§2a) —
+   you don't opt into it, `InboxService.processEvent()` calls your handler for you. If
+   your consumer needs to write to its own tables (e.g. a future Ordering consumer
+   inserting into `orders`), accept a second `tx` argument —
+   `handler: async (event, tx) => orderConsumer.handle(event.payload, tx)` — and pass
+   `tx` down to your repository calls the same way `AuthService` already does with
+   `client` (§3, Step 1). That puts your write in the *same* transaction as the Inbox
+   bookkeeping, so both commit or both roll back together. If your handler has no DB
+   writes of its own (like `UserLoggedInConsumer` above), just ignore the second
+   argument — nothing forces you to use it.
+
 6. **Restart the server.** Log in through the API, wait up to 5 seconds (outbox relay
    delay), and watch the console for your log line.
 
@@ -658,10 +816,22 @@ already went back to the client.
 - **Outbox pattern** — writing an event to a database table in the same transaction as
   the business change it describes, then relaying it to the real broker separately.
   Prevents "database updated but nobody was told" bugs.
-- **At-least-once delivery** — the guarantee this whole system provides: an event will
+- **Inbox pattern** — the mirror image of Outbox, on the consuming side: recording, in
+  the same database transaction as the handler's own work, that a given event has been
+  processed for a given consumer queue — so a redelivered duplicate can be recognized
+  and skipped instead of re-running the handler. See §2a. Backed by `inbox_events`
+  ([`InboxRepository.js`](src/shared/repositories/InboxRepository.js) /
+  [`InboxService.js`](src/shared/services/InboxService.js)).
+- **Idempotency key** — the value used to recognize "this is the same event I already
+  handled." Here it's the pair `(eventId, queue)` — `eventId` is the Outbox row's own
+  `id`, generated once and never regenerated on republish (§3, Step 1–2); `queue` scopes
+  it per-consumer so the same event fanned out to multiple queues is tracked
+  independently for each one.
+- **At-least-once delivery** — the guarantee RabbitMQ provides on its own: an event will
   be delivered one or more times, never zero (as long as consumers eventually come back
-  online). It is *not* exactly-once — a consumer could theoretically process the same
-  event twice (e.g. if it crashes after processing but before acking). None of the
-  current consumers here are written to guard against double-processing (they're not
-  "idempotent") — worth keeping in mind if you add a consumer that does something
-  non-repeatable, like charging a card.
+  online). It is *not* exactly-once by itself — a message can be redelivered (e.g. a
+  consumer crashes after processing but before acking, or the Outbox relay republishes
+  the same row). Every consumer wired through `EventConsumer` now sits behind the Inbox
+  Pattern above, which is what turns "at-least-once delivery" into "effectively
+  exactly-once processing" — the handler itself never has to worry about being called
+  twice for the same event.

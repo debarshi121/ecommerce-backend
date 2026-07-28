@@ -20,8 +20,8 @@ class RabbitMQClient {
     const { protocol, host, port, user, password } = rabbitmqConfig;
     const credentials = user && password ? `${user}:${password}@` : "";
     const url = `${protocol}://${credentials}${host}:${port}`;
-    this.connection = await amqp.connect(url);
 
+    this.connection = await amqp.connect(url);
     this.channel = await this.connection.createChannel();
 
     this.connection.on(

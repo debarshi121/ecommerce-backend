@@ -29,6 +29,7 @@ const SessionRepository = require("../modules/identity/repositories/SessionRepos
 const RoleRepository = require("../modules/identity/repositories/RoleRepository");
 const PermissionRepository = require("../modules/identity/repositories/PermissionRepository");
 const OutboxRepository = require("../shared/repositories/OutboxRepository");
+const InboxRepository = require("../shared/repositories/InboxRepository");
 
 /*
 |--------------------------------------------------------------------------
@@ -45,6 +46,7 @@ const AuthService = require("../modules/identity/services/AuthService");
 const RoleService = require("../modules/identity/services/RoleService");
 const PermissionService = require("../modules/identity/services/PermissionService");
 const OutboxService = require("../shared/services/OutboxService");
+const InboxService = require("../shared/services/InboxService");
 const EventBusService = require("../shared/services/EventBusService");
 const EmailService = require("../modules/notification/services/EmailService");
 const NotificationService = require("../modules/notification/services/NotificationService");
@@ -135,6 +137,8 @@ function registerDependencies() {
 
   const outboxRepository = new OutboxRepository(db);
 
+  const inboxRepository = new InboxRepository(db);
+
   /*
   |--------------------------------------------------------------------------
   | Services
@@ -169,6 +173,11 @@ function registerDependencies() {
 
   const outboxService = new OutboxService({
     outboxRepository,
+  });
+
+  const inboxService = new InboxService({
+    inboxRepository,
+    transactionManager,
   });
 
   const eventBusService = new EventBusService({
@@ -296,6 +305,7 @@ function registerDependencies() {
 
     // Event Bus
     eventPublisher,
+    inboxService,
 
     // Jobs
     publishOutboxJob,

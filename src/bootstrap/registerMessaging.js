@@ -14,7 +14,7 @@ const RoutingKeys = require("../shared/constants/RoutingKeys");
 
 const logger = require("../infrastructure/logging/Logger");
 
-async function registerMessaging({ userRegisteredConsumer }) {
+async function registerMessaging({ userRegisteredConsumer, inboxService }) {
   const rabbit = RabbitMQClient.getInstance();
 
   const channel = rabbit.getChannel();
@@ -43,7 +43,7 @@ async function registerMessaging({ userRegisteredConsumer }) {
     maxRetries: 3,
   });
 
-  const eventConsumer = new EventConsumer(rabbit, retryStrategy);
+  const eventConsumer = new EventConsumer(rabbit, retryStrategy, inboxService);
 
   const registrar = new ModuleRegistrar({
     exchangeManager,

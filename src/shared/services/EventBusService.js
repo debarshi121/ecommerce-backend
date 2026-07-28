@@ -7,6 +7,7 @@ class EventBusService {
 
   async publish(event) {
     await this.eventPublisher.publish({
+      eventId: event.eventId,
       module: event.module,
       routingKey: event.routingKey,
       eventName: event.eventName,
