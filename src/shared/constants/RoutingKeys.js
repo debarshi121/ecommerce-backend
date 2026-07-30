@@ -7,5 +7,9 @@ module.exports = {
   USER_LOGGED_OUT_ALL_DEVICES: "user.logged_out_all_devices",
   AUTH_OTP_REQUIRED: "auth.otp.required",
 
+  PRODUCT_CREATED: "product.created",
+  PRODUCT_UPDATED: "product.updated",
+  PRODUCT_ARCHIVED: "product.archived",
+
   DLQ: "dead-letter",
 };

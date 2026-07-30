@@ -31,6 +31,10 @@ const PermissionRepository = require("../modules/identity/repositories/Permissio
 const OutboxRepository = require("../shared/repositories/OutboxRepository");
 const InboxRepository = require("../shared/repositories/InboxRepository");
 
+const ProductRepository = require("../modules/catalog/repositories/ProductRepository");
+const CategoryRepository = require("../modules/catalog/repositories/CategoryRepository");
+const BrandRepository = require("../modules/catalog/repositories/BrandRepository");
+
 /*
 |--------------------------------------------------------------------------
 | Services
@@ -50,6 +54,10 @@ const InboxService = require("../shared/services/InboxService");
 const EventBusService = require("../shared/services/EventBusService");
 const EmailService = require("../modules/notification/services/EmailService");
 const NotificationService = require("../modules/notification/services/NotificationService");
+
+const ProductService = require("../modules/catalog/services/ProductService");
+const CategoryService = require("../modules/catalog/services/CategoryService");
+const BrandService = require("../modules/catalog/services/BrandService");
 
 /*
 |--------------------------------------------------------------------------
@@ -81,6 +89,10 @@ const OtpController = require("../modules/identity/controllers/OtpController");
 const SessionController = require("../modules/identity/controllers/SessionController");
 const RoleController = require("../modules/identity/controllers/RoleController");
 const PermissionController = require("../modules/identity/controllers/PermissionController");
+
+const ProductController = require("../modules/catalog/controllers/ProductController");
+const CategoryController = require("../modules/catalog/controllers/CategoryController");
+const BrandController = require("../modules/catalog/controllers/BrandController");
 
 /*
 |--------------------------------------------------------------------------
@@ -138,6 +150,12 @@ function registerDependencies() {
   const outboxRepository = new OutboxRepository(db);
 
   const inboxRepository = new InboxRepository(db);
+
+  const productRepository = new ProductRepository(db);
+
+  const categoryRepository = new CategoryRepository(db);
+
+  const brandRepository = new BrandRepository(db);
 
   /*
   |--------------------------------------------------------------------------
@@ -217,6 +235,22 @@ function registerDependencies() {
     emailService,
   });
 
+  const categoryService = new CategoryService({
+    categoryRepository,
+  });
+
+  const brandService = new BrandService({
+    brandRepository,
+  });
+
+  const productService = new ProductService({
+    productRepository,
+    categoryRepository,
+    brandRepository,
+    outboxService,
+    transactionManager,
+  });
+
   /*
   |--------------------------------------------------------------------------
   | Consumers
@@ -242,6 +276,12 @@ function registerDependencies() {
   const roleController = new RoleController(roleService);
 
   const permissionController = new PermissionController(permissionService);
+
+  const productController = new ProductController(productService);
+
+  const categoryController = new CategoryController(categoryService);
+
+  const brandController = new BrandController(brandService);
 
   /*
   |--------------------------------------------------------------------------
@@ -287,6 +327,9 @@ function registerDependencies() {
     sessionController,
     roleController,
     permissionController,
+    productController,
+    categoryController,
+    brandController,
 
     // Middleware
     jwtMiddleware,
@@ -299,6 +342,9 @@ function registerDependencies() {
     roleService,
     permissionService,
     notificationService,
+    productService,
+    categoryService,
+    brandService,
 
     // Consumers
     userRegisteredConsumer,

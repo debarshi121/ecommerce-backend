@@ -6,4 +6,8 @@ module.exports = {
   USER_LOGGED_OUT: "UserLoggedOut",
   USER_LOGGED_OUT_ALL_DEVICES: "UserLoggedOutAllDevices",
   AUTH_OTP_REQUIRED: "AuthOtpRequired",
+
+  PRODUCT_CREATED: "ProductCreated",
+  PRODUCT_UPDATED: "ProductUpdated",
+  PRODUCT_ARCHIVED: "ProductArchived",
 };

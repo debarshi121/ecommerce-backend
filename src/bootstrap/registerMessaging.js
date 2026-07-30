@@ -81,6 +81,20 @@ async function registerMessaging({ userRegisteredConsumer, inboxService }) {
     ],
   });
 
+  /*
+  ---------------------------------------
+  Catalog Module
+  ---------------------------------------
+  */
+
+  await registrar.register({
+    module: RabbitModules.CATALOG,
+
+    retryDelay: 5000,
+
+    consumers: [],
+  });
+
   logger.info("Messaging initialized");
 }
 

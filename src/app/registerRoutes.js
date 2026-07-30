@@ -2,8 +2,13 @@
 
 const identityRoutes = require("../modules/identity/routes");
 
+const catalogRoutes = require("../modules/catalog/routes");
+
 function registerRoutes(app, dependencies) {
-  const routes = identityRoutes(dependencies);
+  const routes = [
+    ...identityRoutes(dependencies),
+    ...catalogRoutes(dependencies),
+  ];
 
   routes.forEach((route) => {
     app.use(`/api/v1${route.path}`, route.router);
