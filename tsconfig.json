@@ -1,0 +1,36 @@
+{
+  "compilerOptions": {
+    /* Environment */
+    "target": "ES2022",
+    "lib": ["ES2023"],
+    "module": "commonjs",
+    "types": ["node"],
+
+    /* Layout */
+    "rootDir": "src",
+    "outDir": "dist",
+    "sourceMap": true,
+    "declaration": false,
+    "removeComments": false,
+
+    /* Interop */
+    "esModuleInterop": true,
+    "allowSyntheticDefaultImports": true,
+    "resolveJsonModule": true,
+    "forceConsistentCasingInFileNames": true,
+    "skipLibCheck": true,
+
+    /* Type-safety: strict everywhere, plus the checks that actually catch
+       bugs in a data-access heavy codebase (indexed access + exhaustiveness). */
+    "strict": true,
+    "noUncheckedIndexedAccess": true,
+    "noImplicitOverride": true,
+    "noFallthroughCasesInSwitch": true,
+    "noImplicitReturns": true,
+    "noUnusedLocals": true,
+    "noUnusedParameters": false,
+    "useUnknownInCatchVariables": true
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["node_modules", "dist"]
+}
