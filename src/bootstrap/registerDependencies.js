@@ -35,6 +35,10 @@ const ProductRepository = require("../modules/catalog/repositories/ProductReposi
 const CategoryRepository = require("../modules/catalog/repositories/CategoryRepository");
 const BrandRepository = require("../modules/catalog/repositories/BrandRepository");
 
+const InventoryRepository = require("../modules/inventory/repositories/InventoryRepository");
+const ReservationRepository = require("../modules/inventory/repositories/ReservationRepository");
+const StockMovementRepository = require("../modules/inventory/repositories/StockMovementRepository");
+
 /*
 |--------------------------------------------------------------------------
 | Services
@@ -59,6 +63,9 @@ const ProductService = require("../modules/catalog/services/ProductService");
 const CategoryService = require("../modules/catalog/services/CategoryService");
 const BrandService = require("../modules/catalog/services/BrandService");
 
+const InventoryService = require("../modules/inventory/services/InventoryService");
+const ReservationService = require("../modules/inventory/services/ReservationService");
+
 /*
 |--------------------------------------------------------------------------
 | Providers
@@ -78,6 +85,10 @@ const ConsoleEmailProvider = require("../modules/notification/providers/ConsoleE
 
 const UserRegisteredConsumer = require("../modules/notification/consumers/UserRegisteredConsumer");
 
+const ProductCreatedConsumer = require("../modules/inventory/consumers/ProductCreatedConsumer");
+const OrderCreatedConsumer = require("../modules/inventory/consumers/OrderCreatedConsumer");
+const OrderCancelledConsumer = require("../modules/inventory/consumers/OrderCancelledConsumer");
+
 /*
 |--------------------------------------------------------------------------
 | Controllers
@@ -93,6 +104,8 @@ const PermissionController = require("../modules/identity/controllers/Permission
 const ProductController = require("../modules/catalog/controllers/ProductController");
 const CategoryController = require("../modules/catalog/controllers/CategoryController");
 const BrandController = require("../modules/catalog/controllers/BrandController");
+
+const InventoryController = require("../modules/inventory/controllers/InventoryController");
 
 /*
 |--------------------------------------------------------------------------
@@ -156,6 +169,12 @@ function registerDependencies() {
   const categoryRepository = new CategoryRepository(db);
 
   const brandRepository = new BrandRepository(db);
+
+  const inventoryRepository = new InventoryRepository(db);
+
+  const reservationRepository = new ReservationRepository(db);
+
+  const stockMovementRepository = new StockMovementRepository(db);
 
   /*
   |--------------------------------------------------------------------------
@@ -251,6 +270,18 @@ function registerDependencies() {
     transactionManager,
   });
 
+  const reservationService = new ReservationService({
+    reservationRepository,
+  });
+
+  const inventoryService = new InventoryService({
+    inventoryRepository,
+    reservationService,
+    stockMovementRepository,
+    outboxService,
+    transactionManager,
+  });
+
   /*
   |--------------------------------------------------------------------------
   | Consumers
@@ -259,6 +290,18 @@ function registerDependencies() {
 
   const userRegisteredConsumer = new UserRegisteredConsumer({
     notificationService,
+  });
+
+  const productCreatedConsumer = new ProductCreatedConsumer({
+    inventoryService,
+  });
+
+  const orderCreatedConsumer = new OrderCreatedConsumer({
+    inventoryService,
+  });
+
+  const orderCancelledConsumer = new OrderCancelledConsumer({
+    inventoryService,
   });
 
   /*
@@ -282,6 +325,8 @@ function registerDependencies() {
   const categoryController = new CategoryController(categoryService);
 
   const brandController = new BrandController(brandService);
+
+  const inventoryController = new InventoryController(inventoryService);
 
   /*
   |--------------------------------------------------------------------------
@@ -330,6 +375,7 @@ function registerDependencies() {
     productController,
     categoryController,
     brandController,
+    inventoryController,
 
     // Middleware
     jwtMiddleware,
@@ -345,9 +391,14 @@ function registerDependencies() {
     productService,
     categoryService,
     brandService,
+    inventoryService,
+    reservationService,
 
     // Consumers
     userRegisteredConsumer,
+    productCreatedConsumer,
+    orderCreatedConsumer,
+    orderCancelledConsumer,
 
     // Event Bus
     eventPublisher,

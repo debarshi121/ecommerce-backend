@@ -10,4 +10,14 @@ module.exports = {
   PRODUCT_CREATED: "ProductCreated",
   PRODUCT_UPDATED: "ProductUpdated",
   PRODUCT_ARCHIVED: "ProductArchived",
+
+  // Consumed from the (future) Ordering module.
+  ORDER_CREATED: "OrderCreated",
+  ORDER_CANCELLED: "OrderCancelled",
+
+  INVENTORY_RESERVED: "InventoryReserved",
+  INVENTORY_RELEASED: "InventoryReleased",
+  INVENTORY_ADJUSTED: "InventoryAdjusted",
+  INVENTORY_LOW: "InventoryLow",
+  INVENTORY_RESERVATION_FAILED: "InventoryReservationFailed",
 };

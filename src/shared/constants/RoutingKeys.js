@@ -11,5 +11,14 @@ module.exports = {
   PRODUCT_UPDATED: "product.updated",
   PRODUCT_ARCHIVED: "product.archived",
 
+  ORDER_CREATED: "order.created",
+  ORDER_CANCELLED: "order.cancelled",
+
+  INVENTORY_RESERVED: "inventory.reserved",
+  INVENTORY_RELEASED: "inventory.released",
+  INVENTORY_ADJUSTED: "inventory.adjusted",
+  INVENTORY_LOW: "inventory.low",
+  INVENTORY_RESERVATION_FAILED: "inventory.reservation.failed",
+
   DLQ: "dead-letter",
 };
